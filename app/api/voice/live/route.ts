@@ -1,8 +1,6 @@
 import { getAuthenticatedUser } from "@/lib/auth/server";
 import { cleanSpokenText, resolveKlarenciaVoice } from "@/lib/voice/server/eleven-v4";
 
-export const runtime = "nodejs";
-
 const recent = new Map<string, number[]>();
 
 export async function POST(request: Request): Promise<Response> {
