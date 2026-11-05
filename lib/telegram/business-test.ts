@@ -66,10 +66,10 @@ async function telegram(method: string, payload: Record<string, unknown>) {
   if (!response.ok || !body.ok) {
     const raw = body.description ?? "undisclosed Telegram error";
     // Telegram's API errors can contain account identifiers; redact them before logging.
-    const safe = raw.replace(/https?:\\/\\/\\S+/gi, "[url]")
+    const safe = raw.replace(/https?:\/\/\S+/gi, "[url]")
       .replace(/@[a-zA-Z0-9_]+/g, "[username]")
-      .replace(/\\b\\d{5,}\\b/g, "[id]")
-      .replace(/[^a-zA-Z0-9 ,.!:'()_\\/-]/g, "?")
+      .replace(/\b\d{5,}\b/g, "[id]")
+      .replace(/[^a-zA-Z0-9 ,.!:'()_\/-]/g, "?")
       .slice(0, 180);
     throw new Error(`Telegram ${method} HTTP ${response.status}: ${safe}`);
   }
