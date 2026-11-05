@@ -59,7 +59,7 @@ export function ProjectsWorkspace({
         const uploaded = await response.json() as { id: string; proof: string };
         if (!uploaded.id || !uploaded.proof) throw new Error("Ответ загрузки недействителен.");
         attachment = { id: crypto.randomUUID(), name: file.name, mediaType: "application/pdf", remoteFileId: uploaded.id, remoteFileProof: uploaded.proof };
-      } else if (/\\.(txt|md|json|csv|ts|tsx|js|jsx|py|html|css|sql|xml|yaml|yml|sh|log)$/i.test(file.name)) {
+      } else if (/\.(txt|md|json|csv|ts|tsx|js|jsx|py|html|css|sql|xml|yaml|yml|sh|log)$/i.test(file.name)) {
         if (file.size > 32_000) throw new Error("Текстовый файл до 32 КБ.");
         const contentText = (await file.text()).slice(0, 3_000);
         if (!contentText.trim()) throw new Error("Файл пуст.");
