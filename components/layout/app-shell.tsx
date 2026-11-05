@@ -210,8 +210,9 @@ export function AppShell({ account }: AppShellProps) {
         console.error("Unable to save account workspace.", {
           errorName: error instanceof Error ? error.name : "UnknownError",
         });
-        setStorageNotice("Не удалось сохранить данные аккаунта. Проверьте соединение и повторите попытку.");
+        setStorageNotice("Сохранение временно недоступно. Повторная попытка через 12 секунд.");
         setPersistencePaused(true);
+        window.setTimeout(() => setPersistencePaused(false), 12_000);
       });
     }, 2_000);
     return () => window.clearTimeout(timeout);
