@@ -11,6 +11,8 @@ import {
   GitBranch,
   List,
   Paperclip,
+  Microphone,
+  MicrophoneSlash,
   PaperPlaneTilt,
   PencilSimple,
   Plus,
@@ -29,6 +31,22 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { MarkdownContent } from "@/components/chat/markdown-content";
 import type { ChatMessage, Conversation, LocalAttachment } from "@/types/workspace";
+
+type SpeechResult = { results: ArrayLike<ArrayLike<{ transcript: string }>> };
+type SpeechRecognizer = {
+  lang: string;
+  interimResults: boolean;
+  continuous: boolean;
+  onresult: ((event: SpeechResult) => void) | null;
+  onerror: (() => void) | null;
+  onend: (() => void) | null;
+  start: () => void;
+  stop: () => void;
+};
+type SpeechWindow = Window & {
+  SpeechRecognition?: new () => SpeechRecognizer;
+  webkitSpeechRecognition?: new () => SpeechRecognizer;
+};
 
 interface ChatWorkspaceProps {
   conversation: Conversation | null;
@@ -78,6 +96,9 @@ export function ChatWorkspace({
   onSearchTargetHandled,
 }: ChatWorkspaceProps) {
   const [draft, setDraft] = useState("");
+  const [voiceSupported, setVoiceSupported] = useState(false);
+  const [voiceRecording, setVoiceRecording] = useState(false);
+  const voiceRef = useRef<SpeechRecognizer | null>(null);
   const [attachments, setAttachments] = useState<LocalAttachment[]>([]);
   const [attachmentError, setAttachmentError] = useState("");
   const [copiedMessageId, setCopiedMessageId] = useState<string | null>(null);
@@ -86,6 +107,35 @@ export function ChatWorkspace({
   const imageInput = useRef<HTMLInputElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const messages = conversation?.messages ?? EMPTY_MESSAGES;
+
+  useEffect(() => {
+    const speech = window as SpeechWindow;
+    setVoiceSupported(Boolean(speech.SpeechRecognition || speech.webkitSpeechRecognition));
+    return () => { voiceRef.current?.stop(); voiceRef.current = null; };
+  }, []);
+
+  function toggleVoiceInput() {
+    if (voiceRecording) { voiceRef.current?.stop(); setVoiceRecording(false); return; }
+    const speech = window as SpeechWindow;
+    const Recognizer = speech.SpeechRecognition ?? speech.webkitSpeechRecognition;
+    if (!Recognizer) { setAttachmentError("Голосовой ввод не поддерживается этим браузером."); return; }
+    try {
+      const recognition = new Recognizer();
+      recognition.lang = "ru-RU";
+      recognition.continuous = false;
+      recognition.interimResults = false;
+      recognition.onresult = (event) => {
+        const transcript = event.results[0]?.[0]?.transcript?.trim();
+        if (transcript) setDraft((previous) => (previous.trim() ? previous.trim() + " " : "") + transcript);
+      };
+      recognition.onerror = () => { setAttachmentError("Не удалось распознать речь. Проверь разрешение на микрофон."); setVoiceRecording(false); };
+      recognition.onend = () => { setVoiceRecording(false); voiceRef.current = null; };
+      voiceRef.current = recognition;
+      recognition.start();
+      setAttachmentError("");
+      setVoiceRecording(true);
+    } catch { setAttachmentError("Не удалось начать запись. Проверь доступ к микрофону."); setVoiceRecording(false); }
+  }
 
   useEffect(() => {
     transcriptEnd.current?.scrollIntoView({
@@ -352,6 +402,9 @@ export function ChatWorkspace({
             </button>
             <input ref={anyFileInput} type="file" multiple className="hidden" onChange={(event) => void handleFiles(event)} />
             <input ref={imageInput} type="file" accept="image/*" multiple className="hidden" onChange={(event) => void handleFiles(event)} />
+            <button type="button" onClick={toggleVoiceInput} disabled={!voiceSupported || isTyping} aria-label={voiceRecording ? "Остановить диктовку" : "Голосовой ввод"} title={voiceSupported ? "Распознать речь в текст (отправка вручную)" : "Браузер не поддерживает распознавание речи"} className={`mb-0.5 flex size-9 shrink-0 items-center justify-center rounded-full transition-colors disabled:opacity-30 ${voiceRecording ? "bg-[#382b1d] text-[#e9b56d]" : "text-[#a6a6a6] hover:bg-[#242424] hover:text-[#e1c78f]"}`}>
+              {voiceRecording ? <MicrophoneSlash size={19} /> : <Microphone size={19} />}
+            </button>
             <Textarea
               ref={textareaRef}
               rows={1}
