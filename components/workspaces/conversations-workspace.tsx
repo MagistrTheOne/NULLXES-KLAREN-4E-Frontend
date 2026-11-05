@@ -3,11 +3,16 @@
 import { useMemo, useState, type ReactNode } from "react";
 import {
   ChatCircleDots,
+  DownloadSimple,
   MagnifyingGlass,
   PencilSimple,
   Plus,
   Trash,
 } from "@phosphor-icons/react";
+import { exportConversation } from "@/lib/workspace/export-data";
+import {
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -104,6 +109,16 @@ export function ConversationsWorkspace({
                   </span>
                 </button>
                 <div className="flex shrink-0 items-center">
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <button type="button" className="flex size-8 items-center justify-center rounded text-[#777] hover:text-[#e6d1a7]" aria-label={`Экспортировать диалог ${conversation.title}`} title="Экспортировать диалог"><DownloadSimple size={16} /></button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" className="border-[#33302a] bg-[#151412] text-[#eee9e0]">
+                      <DropdownMenuItem onSelect={() => exportConversation(conversation, "md")}>Markdown (.md)</DropdownMenuItem>
+                      <DropdownMenuItem onSelect={() => exportConversation(conversation, "txt")}>Текст (.txt)</DropdownMenuItem>
+                      <DropdownMenuItem onSelect={() => exportConversation(conversation, "json")}>JSON (.json)</DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
                   <ActionButton label="Переименовать" onClick={() => onRename(conversation)}>
                     <PencilSimple size={16} />
                   </ActionButton>
