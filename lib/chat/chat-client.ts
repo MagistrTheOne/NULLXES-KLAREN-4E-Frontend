@@ -20,7 +20,7 @@ export async function streamChatResponse(
   const response = await fetch("/api/chat", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ messages, personalization: options.personalization, images: options.images ?? [], files: options.files ?? [] }),
+    body: JSON.stringify({ messages, personalization: options.personalization, images: options.images ?? [], files: options.files ?? [], mode: options.mode ?? "chat" }),
     signal: options.signal,
   });
 
