@@ -17,6 +17,7 @@ import {
   PencilSimple,
   Plus,
   Stop,
+  VideoCamera,
   X,
 } from "@phosphor-icons/react";
 import {
@@ -31,6 +32,7 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { MarkdownContent } from "@/components/chat/markdown-content";
 import { VoiceModeControl } from "@/components/chat/voice-mode-control";
+import { KlarenVideoCall } from "@/components/chat/klaren-video-call";
 import type { ChatMessage, Conversation, LocalAttachment } from "@/types/workspace";
 
 type SpeechResult = { results: ArrayLike<ArrayLike<{ transcript: string }>> };
@@ -99,6 +101,7 @@ export function ChatWorkspace({
   onSearchTargetHandled,
 }: ChatWorkspaceProps) {
   const [draft, setDraft] = useState("");
+  const [videoCallOpen, setVideoCallOpen] = useState(false);
   const [voiceSupported, setVoiceSupported] = useState(false);
   const [voiceRecording, setVoiceRecording] = useState(false);
   const voiceRef = useRef<SpeechRecognizer | null>(null);
@@ -430,6 +433,7 @@ export function ChatWorkspace({
               {voiceRecording ? <MicrophoneSlash size={19} /> : <Microphone size={19} />}
             </button>
             <VoiceModeControl messages={messages} isTyping={isTyping} onSend={onSend} />
+            <Button type="button" variant="ghost" size="icon-lg" onClick={() => setVideoCallOpen(true)} aria-label="Видеозвонок с Кларенсией" title="KLAREN · видеозвонок" className="mb-0.5 size-9 rounded-full text-[#c4ac7c] hover:bg-[#28231c] hover:text-[#e1c78f]"><VideoCamera size={20}/></Button>
             <Textarea
               ref={textareaRef}
               rows={1}
@@ -476,6 +480,7 @@ export function ChatWorkspace({
           {enterToSend ? "Enter — отправить" : "Ctrl/⌘ + Enter — отправить"} · Shift + Enter — новая строка
         </p>
       </div>
+      <KlarenVideoCall open={videoCallOpen} onClose={() => setVideoCallOpen(false)} />
     </div>
   );
 }
