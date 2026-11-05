@@ -286,6 +286,7 @@ export function AppShell({ account }: AppShellProps) {
     conversationId: string,
     prompt: string,
     history: ChatMessage[],
+    mode: "chat" | "video" = "chat",
   ) {
     const controller = new AbortController();
     const reply = createMessage("assistant", "");
@@ -341,6 +342,7 @@ export function AppShell({ account }: AppShellProps) {
         .filter((attachment) => attachment.remoteFileId && attachment.remoteFileProof)
         .map((attachment) => ({ id: attachment.remoteFileId!, proof: attachment.remoteFileProof! })).slice(0, 4);
       await streamChatResponse(requestMessages, {
+        mode,
         files,
         images,
         signal: controller.signal,
@@ -415,7 +417,7 @@ export function AppShell({ account }: AppShellProps) {
     chatControllers.current.get(activeConversationId)?.abort();
   }
 
-  function sendMessage(text: string, attachments: LocalAttachment[]) {
+  function sendMessage(text: string, attachments: LocalAttachment[], mode: "chat" | "video" = "chat") {
     const existingConversation =
       data.conversations.find((item) => item.id === activeConversationId) ?? null;
     if (existingConversation && pendingConversationIds.has(existingConversation.id)) return;
@@ -453,7 +455,7 @@ export function AppShell({ account }: AppShellProps) {
 
     setWorkspaceNotice("");
 
-    void requestReply(conversation.id, prompt.trim() || "Проанализируй прикреплённый файл.", updatedConversation.messages);
+    void requestReply(conversation.id, prompt.trim() || "Проанализируй прикреплённый файл.", updatedConversation.messages, mode);
   }
 
   function regenerateReply() {
