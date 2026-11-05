@@ -478,3 +478,50 @@
  .landing-header-actions .landing-button-primary { white-space:normal; max-width:116px; text-align:center; }
  .landing-mobile-menu summary { padding-inline:7px; }
 }
+
+/* NULLXES landing motion: restrained, one-shot, and reduced-motion aware. */
+@keyframes landing-enter {
+  from { opacity: 0; transform: translate3d(0, 14px, 0); }
+  to { opacity: 1; transform: translate3d(0, 0, 0); }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .landing-hero-copy > .landing-eyebrow,
+  .landing-hero-copy > h1,
+  .landing-hero-copy > .landing-orbit-label,
+  .landing-hero-copy > .landing-hero-line,
+  .landing-hero-copy > .landing-intro,
+  .landing-hero-copy > .landing-hero-actions,
+  .landing-hero-copy > .landing-demo-note {
+    animation: landing-enter 680ms cubic-bezier(.22,1,.36,1) both;
+  }
+  .landing-hero-copy > h1 { animation-delay: 90ms; }
+  .landing-hero-copy > .landing-orbit-label { animation-delay: 155ms; }
+  .landing-hero-copy > .landing-hero-line { animation-delay: 225ms; }
+  .landing-hero-copy > .landing-intro { animation-delay: 295ms; }
+  .landing-hero-copy > .landing-hero-actions { animation-delay: 365ms; }
+  .landing-hero-copy > .landing-demo-note { animation-delay: 430ms; }
+
+  .landing-reveal-pending:not(.landing-revealed) { opacity: 0; transform: translate3d(0, 16px, 0); }
+  .landing-reveal-pending.landing-revealed { animation: landing-enter 560ms cubic-bezier(.22,1,.36,1) both; }
+}
+.landing-nav a { position: relative; text-decoration: none; }
+.landing-nav a::after {
+  content: ""; position: absolute; left: 0; right: 0; bottom: -7px; height: 1px;
+  background: currentColor; transform: scaleX(0); transform-origin: left center;
+  transition: transform 190ms ease;
+}
+.landing-nav a:hover::after, .landing-nav a:focus-visible::after { transform: scaleX(1); }
+.landing-capability {
+  transition: background-color 200ms ease, border-color 200ms ease, padding-inline 200ms ease;
+}
+.landing-capability:hover { background-color: rgb(255 255 255 / 2.5%); border-bottom-color: #595147; }
+.landing-capability-mark { transition: transform 200ms ease, color 200ms ease; }
+.landing-capability:hover .landing-capability-mark { transform: translate(3px, -3px); color: #f0e8dc; }
+.landing-button { transition: background-color 170ms ease, border-color 170ms ease, color 170ms ease, transform 170ms ease; }
+@media (hover: hover) and (prefers-reduced-motion: no-preference) {
+  .landing-button:hover { transform: translateY(-2px); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .landing-hero-copy > *, .landing-reveal-pending, .landing-revealed { animation: none !important; opacity: 1 !important; transform: none !important; }
+  .landing-nav a::after, .landing-capability, .landing-capability-mark, .landing-button { transition: none !important; }
+}
