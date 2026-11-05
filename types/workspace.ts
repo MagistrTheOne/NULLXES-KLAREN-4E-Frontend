@@ -46,6 +46,7 @@ export interface Preferences {
   enterToSend: boolean;
   userName: string;
   userContext: string;
+  pinnedMemories: { id: string; text: string }[];
   sharpness: "balanced" | "wry" | "sharp";
   roleplayEnabled: boolean;
   adultThemesEnabled: boolean;
