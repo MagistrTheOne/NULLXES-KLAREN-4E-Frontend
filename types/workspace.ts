@@ -47,6 +47,7 @@ export interface Preferences {
   userName: string;
   userContext: string;
   pinnedMemories: { id: string; text: string }[];
+  projectContexts: Record<string, string>;
   sharpness: "balanced" | "wry" | "sharp";
   roleplayEnabled: boolean;
   adultThemesEnabled: boolean;
