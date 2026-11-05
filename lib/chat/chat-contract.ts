@@ -17,6 +17,8 @@ const chatRequestMessageSchema = z.object({
   content: z.string().max(MAX_CHAT_MESSAGE_LENGTH),
 });
 
+const chatImageSchema = z.string().max(2_800_000).regex(/^data:image\/(?:png|jpeg|webp|gif);base64,[A-Za-z0-9+/]+={0,2}$/);
+
 const chatPersonalizationSchema = z.object({
   userName: z.string().max(60).default(""),
   userContext: z.string().max(500).default(""),
@@ -33,8 +35,12 @@ export const chatRequestSchema = z
   .object({
     messages: z.array(chatRequestMessageSchema).min(1).max(MAX_CHAT_MESSAGES),
     personalization: chatPersonalizationSchema.optional(),
+    images: z.array(chatImageSchema).max(4).default([]),
   })
-  .superRefine(({ messages }, context) => {
+  .superRefine(({ messages, images }, context) => {
+    if (images.reduce((bytes, value) => bytes + Math.ceil((value.length - value.indexOf(",") - 1) * 0.75), 0) > 3_100_000) {
+      context.addIssue({ code: "custom", message: "Images exceed the total size limit.", path: ["images"] });
+    }
     if (messages.at(-1)?.role !== "user") {
       context.addIssue({
         code: "custom",

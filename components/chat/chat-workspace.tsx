@@ -188,7 +188,7 @@ export function ChatWorkspace({
     const nextAttachments: LocalAttachment[] = [];
 
     for (const file of files) {
-      if (file.type.startsWith("image/")) {
+      if (/^image\/(png|jpeg|webp|gif)$/.test(file.type)) {
         if (file.size > 2_000_000 || totalImageBytes + file.size > 3_000_000) {
           setAttachmentError("Файл слишком большой. Размер одного изображения — до 2 МБ, общий размер — до 3 МБ.");
           return;
@@ -209,7 +209,7 @@ export function ChatWorkspace({
       } else {
         const isText = /\.(txt|md|json|csv|ts|tsx|js|jsx|py|html|css|sql|xml|yaml|yml|sh|log)$/i.test(file.name);
         if (!isText) {
-          setAttachmentError("Поддерживаются текстовые файлы и изображения для предпросмотра. PDF и другие форматы пока не анализируются.");
+          setAttachmentError("Поддерживаются текстовые файлы и PNG, JPEG, WebP, GIF. PDF пока не анализируется.");
           return;
         }
         if (file.size > 32_000) {
@@ -236,10 +236,7 @@ export function ChatWorkspace({
 
   function submitMessage(text = draft) {
     if (isTyping || (!text.trim() && attachments.length === 0)) return;
-    if (!text.trim() && !attachments.some((attachment) => attachment.contentText?.trim())) {
-      setAttachmentError("Изображения доступны только для предпросмотра: модель пока не анализирует их. Добавь текст или поддерживаемый текстовый файл.");
-      return;
-    }
+    if (!text.trim() && !attachments.some((attachment) => attachment.contentText?.trim() || attachment.previewDataUrl)) return;
     onSend(text.trim(), attachments);
     setDraft("");
     setAttachments([]);
@@ -408,7 +405,7 @@ export function ChatWorkspace({
               <Paperclip size={18} />
             </button>
             <input ref={anyFileInput} type="file" multiple className="hidden" onChange={(event) => void handleFiles(event)} />
-            <input ref={imageInput} type="file" accept="image/*" multiple className="hidden" onChange={(event) => void handleFiles(event)} />
+            <input ref={imageInput} type="file" accept="image/png,image/jpeg,image/webp,image/gif" multiple className="hidden" onChange={(event) => void handleFiles(event)} />
             <button type="button" onClick={toggleVoiceInput} disabled={!voiceSupported || isTyping} aria-label={voiceRecording ? "Остановить диктовку" : "Голосовой ввод"} title={voiceSupported ? "Распознать речь в текст (отправка вручную)" : "Браузер не поддерживает распознавание речи"} className={`mb-0.5 flex size-9 shrink-0 items-center justify-center rounded-full transition-colors disabled:opacity-30 ${voiceRecording ? "bg-[#382b1d] text-[#e9b56d]" : "text-[#a6a6a6] hover:bg-[#242424] hover:text-[#e1c78f]"}`}>
               {voiceRecording ? <MicrophoneSlash size={19} /> : <Microphone size={19} />}
             </button>

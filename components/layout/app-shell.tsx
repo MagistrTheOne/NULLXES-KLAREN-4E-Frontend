@@ -330,7 +330,12 @@ export function AppShell({ account }: AppShellProps) {
         requestMessages.unshift({ role: message.role, content });
         historyLength += content.length;
       }
+      const lastUser = [...history].reverse().find((message) => message.role === "user");
+      const images = lastUser?.attachments
+        .filter((attachment) => attachment.previewDataUrl && /^data:image\/(png|jpeg|webp|gif);base64,/.test(attachment.previewDataUrl))
+        .map((attachment) => attachment.previewDataUrl!) ?? [];
       await streamChatResponse(requestMessages, {
+        images,
         signal: controller.signal,
         personalization: {
           userName: data.preferences.userName,
@@ -413,8 +418,8 @@ export function AppShell({ account }: AppShellProps) {
     const readableFiles = attachments.filter((attachment) => attachment.contentText);
     const contentFromFiles = readableFiles.map((file) => `[Файл: ${file.name}]\n${file.contentText}\n[/Файл]`).join("\n");
     const prompt = (text.trim() + (contentFromFiles ? "\n\nПрикреплённые текстовые данные:\n" + contentFromFiles : "")).slice(0, MAX_CHAT_MESSAGE_LENGTH);
-    if (!prompt.trim()) {
-      setWorkspaceNotice("Пока доступно чтение текстовых файлов. Анализ изображений и PDF ещё не подключён к модели.");
+    if (!prompt.trim() && !attachments.some((attachment) => attachment.previewDataUrl)) {
+      setWorkspaceNotice("Добавь текст или вложение.");
       return;
     }
     const userMessage = createMessage("user", text, attachments);
@@ -441,7 +446,7 @@ export function AppShell({ account }: AppShellProps) {
 
     setWorkspaceNotice("");
 
-    void requestReply(conversation.id, prompt, updatedConversation.messages);
+    void requestReply(conversation.id, prompt.trim() || "Опиши прикреплённое изображение.", updatedConversation.messages);
   }
 
   function regenerateReply() {
@@ -463,7 +468,7 @@ export function AppShell({ account }: AppShellProps) {
     }));
     void requestReply(
       activeConversation.id,
-      (lastUserMessage.content + "\n\n" + lastUserMessage.attachments.filter((attachment) => attachment.contentText).map((attachment) => `[Файл: ${attachment.name}]\n${attachment.contentText}\n[/Файл]`).join("\n")).slice(0, MAX_CHAT_MESSAGE_LENGTH).trim(),
+      (lastUserMessage.content + "\n\n" + lastUserMessage.attachments.filter((attachment) => attachment.contentText).map((attachment) => `[Файл: ${attachment.name}]\n${attachment.contentText}\n[/Файл]`).join("\n")).slice(0, MAX_CHAT_MESSAGE_LENGTH).trim() || "Опиши прикреплённое изображение.",
       history,
     );
   }

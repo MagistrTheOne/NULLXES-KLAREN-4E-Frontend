@@ -142,6 +142,7 @@ export async function POST(request: Request): Promise<Response> {
         try {
           await new XAIChatAdapter().stream({
             messages,
+            images: parsed.data.images,
             instructions,
             signal: abortController.signal,
             onDelta,

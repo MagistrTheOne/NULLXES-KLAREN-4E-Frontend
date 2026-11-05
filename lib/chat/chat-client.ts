@@ -12,12 +12,13 @@ export async function streamChatResponse(
     signal: AbortSignal;
     onDelta: (delta: string) => void;
     personalization: ChatPersonalization;
+    images?: string[];
   },
 ): Promise<void> {
   const response = await fetch("/api/chat", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ messages, personalization: options.personalization }),
+    body: JSON.stringify({ messages, personalization: options.personalization, images: options.images ?? [] }),
     signal: options.signal,
   });
 
