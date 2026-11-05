@@ -12,6 +12,7 @@ import { ModelWorkspace } from "@/components/workspaces/model-workspace";
 import { NameDialog } from "@/components/workspaces/name-dialog";
 import { ProjectsWorkspace } from "@/components/workspaces/projects-workspace";
 import { SettingsWorkspace } from "@/components/workspaces/settings-workspace";
+import { GlobalSearch } from "@/components/workspaces/global-search";
 import { ToolsWorkspace } from "@/components/workspaces/tools-workspace";
 import {
   AlertDialog,
@@ -126,6 +127,8 @@ export function AppShell({ account }: AppShellProps) {
     () => new Set(),
   );
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
+  const [globalSearchOpen, setGlobalSearchOpen] = useState(false);
+  const [searchTargetMessageId, setSearchTargetMessageId] = useState<string | null>(null);
   const [nameTarget, setNameTarget] = useState<NameTarget | null>(null);
   const [confirmTarget, setConfirmTarget] = useState<ConfirmTarget>(null);
   const [workspaceNotice, setWorkspaceNotice] = useState("");
@@ -222,6 +225,17 @@ export function AppShell({ account }: AppShellProps) {
     return () => window.removeEventListener("keydown", closeOnEscape);
   }, [mobileSidebarOpen]);
 
+  useEffect(() => {
+    function onSearchShortcut(event: KeyboardEvent) {
+      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "k") {
+        event.preventDefault();
+        setGlobalSearchOpen((open) => !open);
+      }
+    }
+    window.addEventListener("keydown", onSearchShortcut);
+    return () => window.removeEventListener("keydown", onSearchShortcut);
+  }, []);
+
   const activeConversation = useMemo(
     () => data.conversations.find((conversation) => conversation.id === activeConversationId) ?? null,
     [activeConversationId, data.conversations],
@@ -243,6 +257,11 @@ export function AppShell({ account }: AppShellProps) {
     setActiveWorkspace("chat");
     setMobileSidebarOpen(false);
     setWorkspaceNotice("");
+  }
+
+  function openSearchResult(id: string, messageId?: string) {
+    setSearchTargetMessageId(messageId ?? null);
+    openConversation(id);
   }
 
   function openConversation(id: string) {
@@ -662,6 +681,8 @@ export function AppShell({ account }: AppShellProps) {
             onRegenerate={regenerateReply}
             onCopyError={setWorkspaceNotice}
             onToggleMobileSidebar={() => setMobileSidebarOpen((open) => !open)}
+            searchTargetMessageId={searchTargetMessageId}
+            onSearchTargetHandled={() => setSearchTargetMessageId(null)}
           />
         ) : (
           <>
@@ -718,6 +739,14 @@ export function AppShell({ account }: AppShellProps) {
           </>
         )}
       </main>
+
+      <GlobalSearch
+        open={globalSearchOpen}
+        conversations={data.conversations}
+        projects={data.projects}
+        onClose={() => setGlobalSearchOpen(false)}
+        onSelect={openSearchResult}
+      />
 
       <NameDialog
         open={nameTarget !== null}
