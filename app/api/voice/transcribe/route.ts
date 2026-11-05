@@ -1,8 +1,9 @@
-import { getAuthenticatedUser } from "@/lib/auth/server";
+import { requireVoiceUser } from "@/lib/voice/server/auth";
 
 export async function POST(request: Request): Promise<Response> {
-  const user = await getAuthenticatedUser().catch(() => null);
-  if (!user) return Response.json({ error: "Требуется авторизация." }, { status: 401 });
+  const account = await requireVoiceUser();
+  if (account instanceof Response) return account;
+  const user = account;
   const key = process.env.XAI_API_KEY;
   if (!key) return Response.json({ error: "Распознавание недоступно." }, { status: 503 });
   if (Number(request.headers.get("content-length") ?? 0) > 10_500_000) {
