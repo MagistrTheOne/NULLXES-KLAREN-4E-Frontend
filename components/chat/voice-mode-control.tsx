@@ -58,7 +58,7 @@ export function VoiceModeControl({
     const abort = new AbortController();
     controller.current = abort;
     try {
-      const response = await fetch("/api/voice/speak", {
+      const response = await fetch("/api/voice/live", {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ text }), signal: abort.signal,
       });
