@@ -1,6 +1,6 @@
 "use client";
 
-import type { ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import {
   CodeBlock,
   CodeBlockActions,
@@ -188,6 +188,26 @@ export function MarkdownContent({ value }: { value: string }) {
 }
 
 function CodeFence({ language, code }: { language: string; code: string }) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(code);
+  useEffect(() => { if (!editing) setDraft(code); }, [code, editing]);
+
+  function downloadCode() {
+    const extensions: Record<string, string> = {
+      javascript: "js", typescript: "ts", tsx: "tsx", jsx: "jsx",
+      python: "py", bash: "sh", shell: "sh", json: "json",
+      css: "css", html: "html", sql: "sql", rust: "rs",
+      go: "go", java: "java", cpp: "cpp", c: "c",
+    };
+    const extension = extensions[language.toLowerCase()] ?? "txt";
+    const blob = new Blob([draft], { type: "text/plain;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `klaren-code.${extension}`;
+    link.click();
+    URL.revokeObjectURL(url);
+  }
   const lines = useHighlightedCode(code, language);
   return (
     <CodeBlock className="border-[#302d27] bg-[#0b0b0b]">
@@ -196,9 +216,17 @@ function CodeFence({ language, code }: { language: string; code: string }) {
           {language}
         </CodeBlockTitle>
         <CodeBlockActions>
-          <CodeBlockCopyButton value={code} aria-label="Копировать код" />
+          <button type="button" className="rounded px-2 py-1 text-[11px] text-[#c6a46a] hover:bg-[#242019]" onClick={() => setEditing((current) => !current)}>{editing ? "Закрыть редактор" : "Редактор"}</button>
+          <button type="button" className="rounded px-2 py-1 text-[11px] text-[#c6a46a] hover:bg-[#242019]" onClick={downloadCode}>Скачать</button>
+          <CodeBlockCopyButton value={editing ? draft : code} aria-label="Копировать код" />
         </CodeBlockActions>
       </CodeBlockHeader>
+      {editing ? (
+        <div className="border-t border-[#302d27] p-2">
+          <textarea aria-label="Редактирование кода" spellCheck={false} value={draft} onChange={(event) => setDraft(event.target.value)} className="min-h-52 max-h-[60vh] w-full resize-y bg-[#080808] p-3 font-mono text-xs leading-5 text-[#e5e5e5] outline-none focus-visible:ring-1 focus-visible:ring-[#8a7045]" />
+          <p className="px-1 pt-1 text-[10px] text-[#8a8a8a]">Черновик редактора: изменения не отправляются Кларен автоматически.</p>
+        </div>
+      ) : (
       <CodeBlockContent className="max-h-[420px] text-[12px] leading-5">
         {lines.map((line, index) => (
           <span key={index} className="block min-h-5 whitespace-pre">
@@ -206,6 +234,7 @@ function CodeFence({ language, code }: { language: string; code: string }) {
           </span>
         ))}
       </CodeBlockContent>
+      )}
     </CodeBlock>
   );
 }
