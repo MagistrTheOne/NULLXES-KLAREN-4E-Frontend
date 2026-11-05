@@ -13,6 +13,7 @@ import { NameDialog } from "@/components/workspaces/name-dialog";
 import { ProjectsWorkspace } from "@/components/workspaces/projects-workspace";
 import { SettingsWorkspace } from "@/components/workspaces/settings-workspace";
 import { GlobalSearch } from "@/components/workspaces/global-search";
+import { exportAllWorkspaceData } from "@/lib/workspace/export-data";
 import { ToolsWorkspace } from "@/components/workspaces/tools-workspace";
 import {
   AlertDialog,
@@ -783,6 +784,7 @@ export function AppShell({ account }: AppShellProps) {
                 accountEmail={account.email}
                 onPreferenceChange={updatePreference}
                 onClearHistory={() => setConfirmTarget({ action: "clear-history" })}
+                onExportAll={() => exportAllWorkspaceData(data)}
               />
             )}
           </>
