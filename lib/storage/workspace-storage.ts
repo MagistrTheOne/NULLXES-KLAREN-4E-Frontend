@@ -10,6 +10,7 @@ export const DEFAULT_PREFERENCES: Preferences = {
   userName: "",
   userContext: "",
   pinnedMemories: [],
+  projectContexts: {},
   sharpness: "wry",
   roleplayEnabled: false,
   adultThemesEnabled: false,
