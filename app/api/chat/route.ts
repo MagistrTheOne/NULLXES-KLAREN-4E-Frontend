@@ -68,10 +68,12 @@ export async function POST(request: Request): Promise<Response> {
   }
 
   let userId: string;
+  let authenticatedName: string;
   try {
     const user = await getAuthenticatedUser();
     if (!user) return jsonError("Войдите в аккаунт, чтобы продолжить.", 401);
     userId = user.id;
+    authenticatedName = user.name?.trim() || user.email?.split("@")[0] || "Пользователь";
   } catch (error) {
     console.error("Chat session lookup failed.", {
       errorName: error instanceof Error ? error.name : "UnknownError",
@@ -138,7 +140,7 @@ export async function POST(request: Request): Promise<Response> {
           adultThemesEnabled: false,
           codingModeEnabled: false,
           codingStyle: "balanced",
-        });
+        }, authenticatedName);
         let hasContent = false;
         const onDelta = (delta: string) => {
           if (delta && !abortController.signal.aborted) {
