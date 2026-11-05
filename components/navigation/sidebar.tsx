@@ -9,6 +9,7 @@ import {
   CaretRight,
   Folder,
   GearSix,
+  SignOut,
   UserCircle,
   Wrench,
 } from "@phosphor-icons/react";
@@ -25,6 +26,8 @@ interface SidebarProps {
   collapsed: boolean;
   conversationCount: number;
   userName: string;
+  userEmail: string;
+  onSignOut: () => void;
   onCollapse: () => void;
   onNavigate: (workspace: Workspace) => void;
   onNewChat: () => void;
@@ -47,6 +50,8 @@ export function Sidebar({
   collapsed,
   conversationCount,
   userName,
+  userEmail,
+  onSignOut,
   onCollapse,
   onNavigate,
   onNewChat,
@@ -160,6 +165,22 @@ export function Sidebar({
             </button>
           </TooltipTrigger>
           {collapsed && <TooltipContent side="right">Профиль пользователя</TooltipContent>}
+        </Tooltip>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <button
+              type="button"
+              onClick={onSignOut}
+              className={`mt-1 flex h-9 w-full items-center rounded-md text-[#8f8b82] transition-colors hover:bg-[#171511] hover:text-[#e5d1a8] ${
+                collapsed ? "justify-center px-0" : "gap-2.5 px-2.5"
+              }`}
+              aria-label={`Выйти из аккаунта ${userEmail}`}
+            >
+              <SignOut size={18} weight="light" className="shrink-0" />
+              {!collapsed && <span className="text-xs">Выйти</span>}
+            </button>
+          </TooltipTrigger>
+          {collapsed && <TooltipContent side="right">Выйти из аккаунта</TooltipContent>}
         </Tooltip>
         <div className={`mt-3 border-t border-[#242424] pt-3 ${collapsed ? "text-center" : ""}`}>
           {collapsed ? (

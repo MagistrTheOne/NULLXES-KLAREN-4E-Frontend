@@ -21,6 +21,7 @@ import type { Preferences } from "@/types/workspace";
 interface SettingsWorkspaceProps {
   preferences: Preferences;
   conversationCount: number;
+  accountEmail: string;
   onPreferenceChange: <K extends keyof Preferences>(
     key: K,
     value: Preferences[K],
@@ -31,6 +32,7 @@ interface SettingsWorkspaceProps {
 export function SettingsWorkspace({
   preferences,
   conversationCount,
+  accountEmail,
   onPreferenceChange,
   onClearHistory,
 }: SettingsWorkspaceProps) {
@@ -40,7 +42,7 @@ export function SettingsWorkspace({
         <p className="text-[10px] font-medium tracking-[0.3em] text-[#c6a46a]">KLAREN 4E</p>
         <h1 className="mt-3 text-3xl font-medium tracking-tight text-[#f1f1f1] sm:text-[38px]">Персонализация</h1>
         <p className="mt-2 text-sm text-[#929292]">
-          Настройки сохраняются в браузере, а профиль учитывается при формировании ответов.
+          Чаты и персональные настройки сохраняются в аккаунте.
         </p>
 
         <section className="mt-8 overflow-hidden rounded-xl border border-[#292929] bg-[#101010]">
@@ -49,6 +51,10 @@ export function SettingsWorkspace({
             О ТЕБЕ
           </h2>
           <div className="grid gap-4 p-5 sm:grid-cols-2">
+            <div className="sm:col-span-2">
+              <span className="text-xs font-medium text-[#d9d4ca]">Email аккаунта</span>
+              <p className="mt-2 truncate text-sm text-[#929292]">{accountEmail}</p>
+            </div>
             <label className="block">
               <span className="text-xs font-medium text-[#d9d4ca]">Как к тебе обращаться</span>
               <Input

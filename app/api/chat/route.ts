@@ -7,6 +7,8 @@ import { formatChatSseEvent } from "@/lib/chat/chat-sse";
 import { buildChatInstructions } from "@/lib/chat/server/chat-instructions";
 import { ChatProviderError } from "@/lib/chat/server/provider-error";
 import { XAIChatAdapter } from "@/lib/chat/server/xai-adapter";
+import { getAuthenticatedUser } from "@/lib/auth/server";
+import { readLimitedBody } from "@/lib/http/read-limited-body";
 
 const encoder = new TextEncoder();
 const RATE_LIMIT_WINDOW_MS = 60_000;
@@ -15,10 +17,6 @@ const requestTimestamps = new Map<string, number[]>();
 
 function jsonError(message: string, status: number): Response {
   return Response.json({ error: message }, { status });
-}
-
-function getClientKey(request: Request): string {
-  return request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "local";
 }
 
 function isRateLimited(key: string): boolean {
@@ -47,34 +45,6 @@ function isRateLimited(key: string): boolean {
   return false;
 }
 
-async function readLimitedBody(request: Request): Promise<string | null> {
-  if (!request.body) return "";
-  const reader = request.body.getReader();
-  const chunks: Uint8Array[] = [];
-  let totalBytes = 0;
-  try {
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      totalBytes += value.byteLength;
-      if (totalBytes > MAX_CHAT_REQUEST_BYTES) {
-        await reader.cancel();
-        return null;
-      }
-      chunks.push(value);
-    }
-  } finally {
-    reader.releaseLock();
-  }
-  const body = new Uint8Array(totalBytes);
-  let offset = 0;
-  for (const chunk of chunks) {
-    body.set(chunk, offset);
-    offset += chunk.byteLength;
-  }
-  return new TextDecoder().decode(body);
-}
-
 function encodeEvent(event: ChatStreamEvent): Uint8Array {
   return encoder.encode(formatChatSseEvent(event));
 }
@@ -92,6 +62,26 @@ function logProviderFailure(error: unknown): void {
 }
 
 export async function POST(request: Request): Promise<Response> {
+  if (!process.env.NEON_AUTH_BASE_URL) {
+    return jsonError("Чат временно недоступен.", 503);
+  }
+
+  let userId: string;
+  try {
+    const user = await getAuthenticatedUser();
+    if (!user) return jsonError("Войдите в аккаунт, чтобы продолжить.", 401);
+    userId = user.id;
+  } catch (error) {
+    console.error("Chat session lookup failed.", {
+      errorName: error instanceof Error ? error.name : "UnknownError",
+    });
+    return jsonError("Не удалось проверить сессию. Повторите попытку.", 503);
+  }
+
+  if (isRateLimited(userId)) {
+    return jsonError("Слишком много запросов. Повторите попытку позже.", 429);
+  }
+
   const origin = request.headers.get("origin");
   const host = request.headers.get("host");
   if (origin && host) {
@@ -102,16 +92,12 @@ export async function POST(request: Request): Promise<Response> {
     }
   }
 
-  if (isRateLimited(getClientKey(request))) {
-    return jsonError("Слишком много запросов. Повторите попытку позже.", 429);
-  }
-
   const contentLength = Number(request.headers.get("content-length") ?? 0);
   if (contentLength > MAX_CHAT_REQUEST_BYTES) {
     return jsonError("Сообщение слишком большое.", 413);
   }
 
-  const body = await readLimitedBody(request);
+  const body = await readLimitedBody(request, MAX_CHAT_REQUEST_BYTES);
   if (body === null) return jsonError("Сообщение слишком большое.", 413);
 
   let payload: unknown;

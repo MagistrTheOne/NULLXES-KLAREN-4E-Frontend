@@ -14,7 +14,7 @@ This repository contains the official web interface for KLAREN 4E, designed to p
 
 The interface is built around a distinct AI identity, with a premium minimalist design and a modular architecture intended for integration with the KLAREN 4E inference runtime.
 
-The chat interface sends messages through a server-side API route. Conversation history, projects, and preferences are stored in the browser.
+The chat interface sends messages through a server-side API route. Neon Managed Better Auth provides account sessions; each authenticated account's conversations, projects, and preferences are stored in Neon PostgreSQL.
 
 ## Technology Stack
 
@@ -25,6 +25,9 @@ The chat interface sends messages through a server-side API route. Conversation 
 - shadcn/ui — `bpzk` preset
 - Radix UI
 - Phosphor Icons
+- Neon PostgreSQL and Neon Serverless Driver
+- Drizzle ORM and Drizzle Kit
+- Neon Managed Better Auth (`@neon/auth`)
 
 ## Interface
 
@@ -32,8 +35,8 @@ The application is organized into six primary workspaces:
 
 | Workspace | Description |
 |---|---|
-| New Chat | Local chat experience with a replaceable response adapter |
-| Conversations | Search, rename, delete, and organize locally saved conversations |
+| New Chat | Authenticated chat with streamed xAI responses |
+| Conversations | Search, rename, delete, and organize account conversations |
 | Model | KLAREN 4E product identity |
 | Tools | Chat, coding-focused mode, conversation, and project workspaces |
 | Projects | Create projects and associate conversations with them |
@@ -41,12 +44,12 @@ The application is organized into six primary workspaces:
 
 The design follows the NULLXES visual identity: black and graphite surfaces, restrained metallic gold, minimal ornamentation, and a character-focused interface.
 
-Conversation history, projects, preferences, and selected image previews are stored in the current browser. Chat requests go to `/api/chat`; attachments are not uploaded as model input.
+Conversation history, projects, preferences, and selected image previews are stored per account in Neon PostgreSQL. Chat requests go to `/api/chat`; attachments are not uploaded as model input. Existing experimental browser history is not automatically imported or deleted.
 
-The optional user name and context are stored in browser storage and included in chat requests so they can personalize responses. Response-style controls cover tone, roleplay, adult themes, and coding verbosity. Coding mode changes response instructions but does not execute tools or inspect local project files. Assistant messages support Markdown, including syntax-highlighted fenced code; this can be disabled in Settings.
+The optional user name and context are stored with the account and included in chat requests so they can personalize responses. Response-style controls cover tone, roleplay, adult themes, and coding verbosity. Coding mode changes response instructions but does not execute tools or inspect local project files. Assistant messages support Markdown, including syntax-highlighted fenced code; this can be disabled in Settings.
 
 ## Architecture
-The frontend separates reusable UI, workspace features, local persistence, and inference communication.
+The frontend separates reusable UI, account authentication, workspace persistence, and inference communication.
 
 ```text
 NULLXES KLAREN 4E
@@ -58,12 +61,18 @@ NULLXES KLAREN 4E
 │   └── components/workspaces/   Conversations, model, tools, projects, settings
 │
 ├── Server API
-│   ├── app/api/chat/            Validated streaming chat endpoint
+│   ├── app/api/auth/            Neon Managed Better Auth proxy
+│   ├── app/api/chat/            Authenticated streaming chat endpoint
+│   ├── app/api/workspace/       Per-account workspace persistence
 │   └── lib/chat/server/         Fixed inference chain and adapters
 │
-└── Browser Services
-    ├── lib/chat/chat-client.ts  Provider-independent SSE client
-    └── lib/storage/             Browser persistence
+├── Database
+│   ├── lib/db/schema.ts         Drizzle workspace schema
+│   └── drizzle/                 Versioned PostgreSQL migrations
+│
+└── Browser
+    ├── lib/auth/client.ts       Same-origin Managed Auth client
+    └── lib/chat/chat-client.ts  SSE chat client
 ```
 
 The server sends chat requests only to xAI Grok. It never switches providers or retries through OpenAI. A provider failure is returned as an honest chat error; partial responses are not restarted. The browser always uses the same `/api/chat` SSE contract: `message.delta`, `message.completed`, and `message.error`. xAI uses the official `https://api.x.ai/v1` base URL and defaults to `grok-4.7`. See the [xAI quickstart](https://docs.x.ai/developers/quickstart), [text generation guide](https://docs.x.ai/developers/model-capabilities/text/generate-text), and [streaming guide](https://docs.x.ai/developers/model-capabilities/text/streaming).
@@ -78,16 +87,24 @@ message.error     {"type":"message.error","message":"Не удалось отп�
 
 ### Server configuration
 
-Use the single root `.env` file. Never prefix credentials with `NEXT_PUBLIC_`.
+Use only the root `.env` file. Never prefix credentials with `NEXT_PUBLIC_`.
 
 | Variable | Purpose |
 |---|---|
 | `XAI_API_KEY` | Server-side xAI credential |
 | `XAI_MODEL` | xAI model identifier; defaults to `grok-4.7` |
+| `DATABASE_URL` | Neon PostgreSQL connection |
+| `DATABASE_URL_UNPOOLED` | Optional direct Neon connection for schema migrations; use the hostname without `-pooler` |
+| `NEON_AUTH_BASE_URL` | Auth URL copied from the enabled Neon Better Auth settings |
+| `NEON_AUTH_COOKIE_SECRET` | At least 32 characters; if omitted, the existing `BETTER_AUTH_SECRET` is used |
+
+Enable Better Auth for the Neon project in the Neon Console before using account flows. Managed Auth requires a supported AWS project without IP Allow or Private Networking. Email/password, email OTP, and password recovery use Neon's managed email delivery for development; production requires custom SMTP. Google/GitHub OAuth are intentionally not enabled yet. Phone OTP is not configured: it requires an SMS delivery webhook and an approved SMS provider.
+
+Generate and apply schema changes with `npm run db:generate` and `npm run db:migrate`. For migrations, set `DATABASE_URL_UNPOOLED` in the root `.env` to the direct Neon connection (without `-pooler`); `DATABASE_URL` remains the runtime connection. The current Neon database already has the workspace tables. New users start with an empty account workspace; existing experimental browser history is left untouched and is not uploaded.
 
 When the KLAREN 4E inference service is ready, replace the server-side xAI adapter with the native model endpoint; no browser provider or model selection is involved.
 
-Restart the development server after changing `.env`. The endpoint limits requests to 10 per minute per forwarded client address and caps each output at 1,024 tokens. This in-memory limit is not a substitute for authentication or distributed rate limiting; do not deploy with a billable provider enabled until access control and production spending controls are in place.
+Restart the development server after changing `.env`. The chat endpoint requires an authenticated account, limits requests to 10 per minute per account, and caps each output at 1,024 tokens. The in-memory limit is not distributed rate limiting; production deployments still need appropriate spending controls.
 
 ## Getting Started
 
@@ -124,10 +141,11 @@ npm run start
 | Component | Status |
 |---|---|
 | Visual design | Concept approved |
-| Frontend architecture | Server-side chat API with local workspace storage |
+| Frontend architecture | Server-side chat API with account authentication |
 | Chat interface | Streaming through `/api/chat` |
-| Conversation persistence | Implemented in browser storage |
-| Project management | Implemented in browser storage |
+| Account authentication | Neon Managed Better Auth integration |
+| Conversation persistence | Neon PostgreSQL, scoped to the signed-in account |
+| Project management | Neon PostgreSQL, scoped to the signed-in account |
 | Settings and navigation | Implemented |
 | Image attachments | Local preview only |
 | Chat inference | xAI Grok |
@@ -154,7 +172,7 @@ Do not commit API keys, credentials, private model artifacts, or production envi
 
 Backend credentials and sensitive operations must remain server-side.
 
-Do not expose a billable chat provider in a public deployment until authentication and production-grade spending controls are in place.
+Keep credentials server-side. Configure and verify Neon Managed Auth, production SMTP, and spending controls before public deployment. The app does not implement SMS delivery or activate OAuth providers until configured.
 
 ## Organization
 

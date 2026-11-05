@@ -2,6 +2,7 @@
 
 import Image from "next/image";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import { List } from "@phosphor-icons/react";
 import { Sidebar } from "@/components/navigation/sidebar";
 import { ChatWorkspace } from "@/components/chat/chat-workspace";
@@ -23,17 +24,16 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { streamChatResponse } from "@/lib/chat/chat-client";
+import { authClient } from "@/lib/auth/client";
 import {
   MAX_CHAT_HISTORY_LENGTH,
   MAX_CHAT_MESSAGE_LENGTH,
   MAX_CHAT_MESSAGES,
 } from "@/lib/chat/chat-limits";
 import {
-  readWorkspaceData,
-  removeWorkspaceData,
-  writeWorkspaceData,
   DEFAULT_PREFERENCES,
 } from "@/lib/storage/workspace-storage";
+import { workspaceDataSchema } from "@/lib/workspace/workspace-contract";
 import type {
   ChatMessage,
   Conversation,
@@ -50,6 +50,13 @@ type ConfirmTarget =
   | { action: "delete-project"; project: Project }
   | { action: "clear-history" }
   | null;
+
+interface AppShellProps {
+  account: {
+    name: string;
+    email: string;
+  };
+}
 
 const workspaceTitles: Record<Exclude<Workspace, "chat">, string> = {
   conversations: "Диалоги",
@@ -97,7 +104,19 @@ function createMessage(
   };
 }
 
-export function AppShell() {
+async function saveWorkspaceData(data: WorkspaceData): Promise<void> {
+  const response = await fetch("/api/workspace", {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(data),
+  });
+  if (!response.ok) {
+    throw new Error("Workspace save failed.");
+  }
+}
+
+export function AppShell({ account }: AppShellProps) {
+  const router = useRouter();
   const [data, setData] = useState<WorkspaceData>(createEmptyWorkspaceData);
   const [activeWorkspace, setActiveWorkspace] = useState<Workspace>("chat");
   const [activeConversationId, setActiveConversationId] = useState<string | null>(null);
@@ -112,7 +131,9 @@ export function AppShell() {
   const [storageReady, setStorageReady] = useState(false);
   const [persistencePaused, setPersistencePaused] = useState(false);
   const [storageRecoveryRequired, setStorageRecoveryRequired] = useState(false);
+  const [loadAttempt, setLoadAttempt] = useState(0);
   const chatControllers = useRef(new Map<string, AbortController>());
+  const saveQueue = useRef<Promise<void>>(Promise.resolve());
 
   useEffect(() => {
     const controllers = chatControllers.current;
@@ -123,33 +144,56 @@ export function AppShell() {
   }, []);
 
   useEffect(() => {
-    try {
-      const saved = readWorkspaceData();
-      if (saved) {
-        setData(saved);
-        setActiveConversationId(saved.conversations[0]?.id ?? null);
+    let cancelled = false;
+
+    async function loadWorkspace() {
+      try {
+        const response = await fetch("/api/workspace", { cache: "no-store" });
+        if (!response.ok) throw new Error("Workspace load failed.");
+        const parsed = workspaceDataSchema.safeParse(await response.json());
+        if (!parsed.success) throw new Error("Workspace response is invalid.");
+        if (cancelled) return;
+        setData(parsed.data);
+        setActiveConversationId(parsed.data.conversations[0]?.id ?? null);
+        setStorageNotice("");
+        setPersistencePaused(false);
+        setStorageRecoveryRequired(false);
+        setStorageReady(true);
+      } catch (error) {
+        if (cancelled) return;
+        console.error("Unable to load account workspace.", {
+          errorName: error instanceof Error ? error.name : "UnknownError",
+        });
+        setStorageNotice("Не удалось загрузить данные аккаунта. Повторите попытку.");
+        setPersistencePaused(true);
+        setStorageRecoveryRequired(true);
       }
-    } catch (error) {
-      console.error("Unable to read saved workspace data.", error);
-      setStorageNotice("Не удалось загрузить данные. Повторите попытку или восстановите историю.");
-      setPersistencePaused(true);
-      setStorageRecoveryRequired(true);
-    } finally {
-      setStorageReady(true);
     }
-  }, []);
+
+    void loadWorkspace();
+    return () => {
+      cancelled = true;
+    };
+  }, [loadAttempt]);
 
   useEffect(() => {
     if (!storageReady || persistencePaused) return;
-    try {
-      writeWorkspaceData(data);
-      setStorageNotice("");
-      setStorageRecoveryRequired(false);
-    } catch (error) {
-      console.error("Unable to save workspace data.", error);
-      setStorageNotice("Не удалось сохранить изменения. Проверьте свободное место и повторите попытку.");
-      setPersistencePaused(true);
-    }
+    const snapshot = data;
+    const timeout = window.setTimeout(() => {
+      const save = saveQueue.current.catch(() => undefined).then(() => saveWorkspaceData(snapshot));
+      saveQueue.current = save;
+      void save.then(() => {
+        setStorageNotice("");
+        setStorageRecoveryRequired(false);
+      }).catch((error: unknown) => {
+        console.error("Unable to save account workspace.", {
+          errorName: error instanceof Error ? error.name : "UnknownError",
+        });
+        setStorageNotice("Не удалось сохранить данные аккаунта. Проверьте соединение и повторите попытку.");
+        setPersistencePaused(true);
+      });
+    }, 2_000);
+    return () => window.clearTimeout(timeout);
   }, [data, persistencePaused, storageReady]);
 
   useEffect(() => {
@@ -452,19 +496,55 @@ export function AppShell() {
   }
 
   function recoverStorage() {
-    try {
-      if (storageRecoveryRequired) {
-        removeWorkspaceData();
-        setData(createEmptyWorkspaceData());
-        setActiveConversationId(null);
-      }
+    setStorageNotice("");
+    if (storageRecoveryRequired) {
+      setStorageReady(false);
       setStorageRecoveryRequired(false);
-      setStorageNotice("");
-      setPersistencePaused(false);
-    } catch (error) {
-      console.error("Unable to recover saved workspace data.", error);
-      setStorageNotice("Не удалось восстановить историю. Обновите страницу и попробуйте ещё раз.");
+      setLoadAttempt((attempt) => attempt + 1);
+      return;
     }
+    setPersistencePaused(false);
+  }
+
+  async function signOut() {
+    try {
+      const save = saveQueue.current
+        .catch(() => undefined)
+        .then(() => saveWorkspaceData(data));
+      saveQueue.current = save;
+      await save;
+      const result = await authClient.signOut();
+      if (result.error) throw new Error("Neon Auth sign out failed.");
+      router.replace("/auth");
+      router.refresh();
+    } catch (error) {
+      console.error("Unable to sign out.", {
+        errorName: error instanceof Error ? error.name : "UnknownError",
+      });
+      setWorkspaceNotice("Не удалось завершить сеанс. Повторите попытку.");
+    }
+  }
+
+  if (!storageReady) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-[#080808] px-5 text-center">
+        <div className="max-w-md">
+          <p className="text-[11px] font-medium tracking-[0.3em] text-[#c6a46a]">KLAREN 4E</p>
+          <p className="mt-4 text-sm text-[#b8b2a7]">
+            {storageRecoveryRequired ? storageNotice : "Загружаем данные аккаунта…"}
+          </p>
+          {storageRecoveryRequired && (
+            <Button
+              type="button"
+              onClick={recoverStorage}
+              className="mt-5 bg-[#c6a46a] text-[#080808] hover:bg-[#d3b77f]"
+            >
+              Повторить
+            </Button>
+          )}
+        </div>
+      </div>
+    );
   }
 
   const nameInitialValue =
@@ -484,7 +564,9 @@ export function AppShell() {
         activeWorkspace={activeWorkspace}
         collapsed={data.preferences.sidebarCollapsed && !mobileSidebarOpen}
         conversationCount={data.conversations.length}
-        userName={data.preferences.userName}
+        userName={data.preferences.userName.trim() || account.name || account.email}
+        userEmail={account.email}
+        onSignOut={signOut}
         onCollapse={() => updatePreference("sidebarCollapsed", !data.preferences.sidebarCollapsed)}
         onNavigate={navigate}
         onNewChat={newChat}
@@ -609,6 +691,7 @@ export function AppShell() {
               <SettingsWorkspace
                 preferences={data.preferences}
                 conversationCount={data.conversations.length}
+                accountEmail={account.email}
                 onPreferenceChange={updatePreference}
                 onClearHistory={() => setConfirmTarget({ action: "clear-history" })}
               />

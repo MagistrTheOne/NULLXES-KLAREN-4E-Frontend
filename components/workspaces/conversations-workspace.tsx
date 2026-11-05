@@ -111,7 +111,7 @@ export function ConversationsWorkspace({
                     <Trash size={16} />
                   </ActionButton>
                 </div>
-                <div className="w-full pl-[52px] lg:hidden">
+                <div className="w-full pl-13 lg:hidden">
                   <Select
                     value={conversation.projectId ?? "unassigned"}
                     onValueChange={(value) =>
@@ -120,7 +120,7 @@ export function ConversationsWorkspace({
                   >
                     <SelectTrigger
                       aria-label={`Проект для диалога ${conversation.title}`}
-                      className="h-8 w-full max-w-[240px] border-[#292929] bg-[#101010] text-xs text-[#a6a6a6]"
+                      className="h-8 w-full max-w-60 border-[#292929] bg-[#101010] text-xs text-[#a6a6a6]"
                     >
                       <SelectValue placeholder="Без проекта" />
                     </SelectTrigger>

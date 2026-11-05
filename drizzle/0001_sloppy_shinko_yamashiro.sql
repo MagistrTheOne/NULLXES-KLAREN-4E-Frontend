@@ -1,0 +1,1 @@
+ALTER TABLE "klaren_messages" ADD COLUMN "position" integer DEFAULT 0 NOT NULL;
