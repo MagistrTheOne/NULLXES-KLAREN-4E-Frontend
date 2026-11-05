@@ -49,6 +49,7 @@ type SpeechWindow = Window & {
 };
 
 interface ChatWorkspaceProps {
+  accountName: string;
   conversation: Conversation | null;
   isTyping: boolean;
   portraitVisible: boolean;
@@ -77,6 +78,7 @@ const promptSuggestions = [
 ];
 
 export function ChatWorkspace({
+  accountName,
   conversation,
   isTyping,
   portraitVisible,
@@ -342,6 +344,7 @@ export function ChatWorkspace({
                 index === messages.length - 1;
               return (
                 <MessageRow
+                  accountName={accountName}
                   key={message.id}
                   message={message}
                   renderMarkdown={renderMarkdown}
@@ -476,6 +479,7 @@ export function ChatWorkspace({
 }
 
 function MessageRow({
+  accountName,
   message,
   renderMarkdown,
   copied,
@@ -484,6 +488,7 @@ function MessageRow({
   onRegenerate,
   onBranch,
 }: {
+  accountName: string;
   message: ChatMessage;
   renderMarkdown: boolean;
   copied: boolean;
@@ -495,10 +500,10 @@ function MessageRow({
   const user = message.role === "user";
   return (
     <article data-chat-message-id={message.id} className={`flex min-w-0 items-start gap-3 ${user ? "flex-row-reverse" : ""}`}>
-      {user ? <UserAvatar /> : <AssistantAvatar />}
+      {user ? <UserAvatar name={accountName} /> : <AssistantAvatar />}
       <div className={`flex min-w-0 max-w-[min(82%,720px)] flex-col ${user ? "items-end" : "items-start"}`}>
         <div className={`mb-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 px-1 ${user ? "justify-end" : ""}`}>
-          <span className="text-[11px] font-medium text-[#d6d6d6]">{user ? "Вы" : "KLAREN 4E"}</span>
+          <span className="text-[11px] font-medium text-[#d6d6d6]">{user ? accountName : "KLAREN 4E"}</span>
           <time className="text-[10px] text-[#777]">{formatTime(message.createdAt)}</time>
         </div>
         <div className={`message-copy min-w-0 max-w-full rounded-2xl border px-4 py-3 text-[13px] leading-[1.65] sm:text-sm ${
@@ -561,10 +566,11 @@ function AssistantAvatar() {
   );
 }
 
-function UserAvatar() {
+function UserAvatar({ name }: { name: string }) {
+  const initials = name.trim().split(/\s+/).slice(0, 2).map((part) => part[0]?.toLocaleUpperCase("ru")).join("") || "?";
   return (
-    <div className="mt-5 flex size-8 shrink-0 items-center justify-center rounded-full border border-[#3b3b3b] bg-[#171717] text-[10px] font-medium text-[#bababa]">
-      ВЫ
+    <div className="mt-5 flex size-8 shrink-0 items-center justify-center rounded-full border border-[#59472c] bg-[#211a10] text-[10px] font-medium text-[#edc37e]" aria-label={name}>
+      {initials}
     </div>
   );
 }
