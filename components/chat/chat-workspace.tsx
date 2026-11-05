@@ -44,6 +44,8 @@ interface ChatWorkspaceProps {
   onRegenerate: () => void;
   onCopyError: (message: string) => void;
   onToggleMobileSidebar: () => void;
+  searchTargetMessageId: string | null;
+  onSearchTargetHandled: () => void;
 }
 
 const EMPTY_MESSAGES: ChatMessage[] = [];
@@ -69,6 +71,8 @@ export function ChatWorkspace({
   onRegenerate,
   onCopyError,
   onToggleMobileSidebar,
+  searchTargetMessageId,
+  onSearchTargetHandled,
 }: ChatWorkspaceProps) {
   const [draft, setDraft] = useState("");
   const [attachments, setAttachments] = useState<LocalAttachment[]>([]);
@@ -86,6 +90,14 @@ export function ChatWorkspace({
       block: "end",
     });
   }, [isTyping, messages, reducedMotion]);
+
+  useEffect(() => {
+    if (!searchTargetMessageId) return;
+    const target = Array.from(document.querySelectorAll<HTMLElement>("[data-chat-message-id]")).find((node) => node.dataset.chatMessageId === searchTargetMessageId);
+    if (!target) return;
+    target.scrollIntoView({ behavior: "auto", block: "center" });
+    onSearchTargetHandled();
+  }, [conversation?.id, searchTargetMessageId, onSearchTargetHandled]);
 
   useEffect(() => {
     if (!textareaRef.current) return;
@@ -386,7 +398,7 @@ function MessageRow({
 }) {
   const user = message.role === "user";
   return (
-    <article className={`flex min-w-0 items-start gap-3 ${user ? "flex-row-reverse" : ""}`}>
+    <article data-chat-message-id={message.id} className={`flex min-w-0 items-start gap-3 ${user ? "flex-row-reverse" : ""}`}>
       {user ? <UserAvatar /> : <AssistantAvatar />}
       <div className={`flex min-w-0 max-w-[min(82%,720px)] flex-col ${user ? "items-end" : "items-start"}`}>
         <div className={`mb-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 px-1 ${user ? "justify-end" : ""}`}>
