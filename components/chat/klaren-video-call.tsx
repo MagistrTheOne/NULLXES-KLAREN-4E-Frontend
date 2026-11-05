@@ -26,7 +26,7 @@ export function KlarenVideoCall({ open, onClose, messages, isTyping, onSend }: {
   const cameraRef = useRef<MediaStream | null>(null);
   const microphoneRef = useRef<MediaStream | null>(null);
   const recordingRef = useRef<MediaRecorder | null>(null);
-  const voiceRequestRef = useRef<string | null>(null);
+  const voiceRequestRef = useRef<{ before: number; pending: boolean } | null>(null);
   const audioControllerRef = useRef<AbortController | null>(null);
   const audioGenerationRef = useRef(0);
   const voiceStreamRef = useRef<ReturnType<Client["createAgentAudioInputStream"]> | null>(null);
@@ -59,6 +59,7 @@ export function KlarenVideoCall({ open, onClose, messages, isTyping, onSend }: {
   const closeStream = useCallback(() => {
     cancelledRef.current = true;
     tokenRef.current = null;
+    voiceRequestRef.current = null;
     audioControllerRef.current?.abort();
     audioGenerationRef.current += 1;
     recordingRef.current?.stop();
@@ -205,7 +206,7 @@ export function KlarenVideoCall({ open, onClose, messages, isTyping, onSend }: {
       setLastSpeaker("ВЫ");
       setLastCaption(transcript);
       // Speak only the next assistant response produced by this voice request.
-      voiceRequestRef.current = [...messages].reverse().find((message) => message.role === "assistant")?.id ?? "first";
+      voiceRequestRef.current = { before: messages.length, pending: false };
       onSend(transcript, []);
     } catch {
       if (!cancelledRef.current) setError("Не удалось распознать речь через xAI.");
@@ -250,18 +251,25 @@ export function KlarenVideoCall({ open, onClose, messages, isTyping, onSend }: {
   }
 
   useEffect(() => {
-    if (!open || !voiceRequestRef.current || isTyping) return;
-    const reply = [...messages].reverse().find((item) => item.role === "assistant" && item.id !== voiceRequestRef.current);
-    if (!reply?.content.trim()) return;
+    const pending = voiceRequestRef.current;
+    if (!open || !pending) return;
+    if (isTyping) pending.pending = true;
+    if (!pending.pending || isTyping) return;
+    const newer = messages.slice(pending.before);
+    if (!newer.some((message) => message.role === "user")) return;
+    const reply = [...newer].reverse().find((message) => message.role === "assistant" && message.content.trim());
     voiceRequestRef.current = null;
+    if (!reply) {
+      setError("Кларен не ответила на голосовой запрос.");
+      return;
+    }
     setLastSpeaker("КЛАРЕН");
     setLastCaption(reply.content);
-    // Reactions respond to KLAREN's own words, never random timers.
-    if (/хоба[\s-]*хоба|hoba[\s-]*hoba/i.test(reply.content)) flashReaction("💃");
+    if (/хоба[\\s-]*хоба|hoba[\\s-]*hoba/i.test(reply.content)) flashReaction("💃");
     else if (/ахах|ха-ха|рассмеш/i.test(reply.content)) flashReaction("😂");
-    else if (/тш[\s-]*ш|много знаешь/i.test(reply.content)) flashReaction("🤫");
+    else if (/тш[\\s-]*ш|много знаешь/i.test(reply.content)) flashReaction("🤫");
     void playSpeech(reply.content);
-    // Current request is resolved by the completed assistant message.
+    // Trigger only on the completed response to this specific user turn.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, messages, isTyping]);
 
