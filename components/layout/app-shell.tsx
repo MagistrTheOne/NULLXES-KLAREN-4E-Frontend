@@ -332,7 +332,7 @@ export function AppShell({ account }: AppShellProps) {
       }
       const lastUser = [...history].reverse().find((message) => message.role === "user");
       const images = lastUser?.attachments
-        .filter((attachment) => attachment.previewDataUrl && /^data:image\/(png|jpeg|webp|gif);base64,/.test(attachment.previewDataUrl))
+        .filter((attachment) => attachment.previewDataUrl && /^data:image\/(png|jpeg);base64,/.test(attachment.previewDataUrl))
         .map((attachment) => attachment.previewDataUrl!) ?? [];
       await streamChatResponse(requestMessages, {
         images,

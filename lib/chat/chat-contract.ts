@@ -17,7 +17,7 @@ const chatRequestMessageSchema = z.object({
   content: z.string().max(MAX_CHAT_MESSAGE_LENGTH),
 });
 
-const chatImageSchema = z.string().max(2_800_000).regex(/^data:image\/(?:png|jpeg|webp|gif);base64,[A-Za-z0-9+/]+={0,2}$/);
+const chatImageSchema = z.string().max(2_800_000).regex(/^data:image\/(?:png|jpeg);base64,[A-Za-z0-9+/]+={0,2}$/);
 
 const chatPersonalizationSchema = z.object({
   userName: z.string().max(60).default(""),
