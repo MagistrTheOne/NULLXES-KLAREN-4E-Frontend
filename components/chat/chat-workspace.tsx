@@ -480,7 +480,7 @@ export function ChatWorkspace({
           {enterToSend ? "Enter — отправить" : "Ctrl/⌘ + Enter — отправить"} · Shift + Enter — новая строка
         </p>
       </div>
-      <KlarenVideoCall open={videoCallOpen} onClose={() => setVideoCallOpen(false)} />
+      <KlarenVideoCall open={videoCallOpen} onClose={() => setVideoCallOpen(false)} messages={messages} isTyping={isTyping} onSend={onSend} />
     </div>
   );
 }
