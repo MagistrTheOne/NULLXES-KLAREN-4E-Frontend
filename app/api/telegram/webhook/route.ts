@@ -6,6 +6,7 @@ import { DEFAULT_PREFERENCES } from "@/lib/storage/workspace-storage";
 import { buildChatInstructions } from "@/lib/chat/server/chat-instructions";
 import { XAIChatAdapter } from "@/lib/chat/server/xai-adapter";
 import { readLimitedBody } from "@/lib/http/read-limited-body";
+import { handleBusinessTestUpdate } from "@/lib/telegram/business-test";
 
 type TelegramUser = { id: number; first_name?: string; username?: string; is_bot?: boolean };
 type TelegramMessage = {
@@ -142,6 +143,10 @@ export async function POST(request: Request): Promise<Response> {
   try { update = JSON.parse(raw) as TelegramUpdate; }
   catch { return Response.json({ error: "Invalid JSON" }, { status: 400 }); }
   if (!Number.isSafeInteger(update.update_id)) return Response.json({ error: "Invalid update" }, { status: 400 });
+
+  if (process.env.TELEGRAM_TEST_ENABLED === "true") {
+    return handleBusinessTestUpdate(update);
+  }
 
   const updateId = String(update.update_id);
   const inserted = await db.insert(telegramUpdates).values({ updateId })
