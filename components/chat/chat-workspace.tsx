@@ -236,6 +236,10 @@ export function ChatWorkspace({
 
   function submitMessage(text = draft) {
     if (isTyping || (!text.trim() && attachments.length === 0)) return;
+    if (!text.trim() && !attachments.some((attachment) => attachment.contentText?.trim())) {
+      setAttachmentError("Изображения доступны только для предпросмотра: модель пока не анализирует их. Добавь текст или поддерживаемый текстовый файл.");
+      return;
+    }
     onSend(text.trim(), attachments);
     setDraft("");
     setAttachments([]);
@@ -390,6 +394,9 @@ export function ChatWorkspace({
           )}
           {attachmentError && (
             <p role="alert" className="px-3 pb-1 text-xs text-[#e1a0a0]">{attachmentError}</p>
+          )}
+          {attachments.some((attachment) => attachment.previewDataUrl && !attachment.contentText) && (
+            <p className="px-3 pb-1 text-[10px] text-[#969696]">Изображения пока сохраняются для предпросмотра, но не анализируются Кларен.</p>
           )}
           <div className="flex items-end gap-1.5 sm:gap-2">
             <button
