@@ -4,6 +4,7 @@ import Image from "next/image";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { List } from "@phosphor-icons/react";
+import { AccountDialog } from "@/components/auth/account-dialog";
 import { Sidebar } from "@/components/navigation/sidebar";
 import { ChatWorkspace } from "@/components/chat/chat-workspace";
 import { ConversationsWorkspace } from "@/components/workspaces/conversations-workspace";
@@ -117,6 +118,7 @@ async function saveWorkspaceData(data: WorkspaceData): Promise<void> {
 
 export function AppShell({ account }: AppShellProps) {
   const router = useRouter();
+  const [accountSection, setAccountSection] = useState<"profile" | "security" | null>(null);
   const [data, setData] = useState<WorkspaceData>(createEmptyWorkspaceData);
   const [activeWorkspace, setActiveWorkspace] = useState<Workspace>("chat");
   const [activeConversationId, setActiveConversationId] = useState<string | null>(null);
@@ -134,6 +136,7 @@ export function AppShell({ account }: AppShellProps) {
   const [loadAttempt, setLoadAttempt] = useState(0);
   const chatControllers = useRef(new Map<string, AbortController>());
   const saveQueue = useRef<Promise<void>>(Promise.resolve());
+  const savedSnapshot = useRef("");
 
   useEffect(() => {
     const controllers = chatControllers.current;
@@ -149,10 +152,20 @@ export function AppShell({ account }: AppShellProps) {
     async function loadWorkspace() {
       try {
         const response = await fetch("/api/workspace", { cache: "no-store" });
-        if (!response.ok) throw new Error("Workspace load failed.");
-        const parsed = workspaceDataSchema.safeParse(await response.json());
-        if (!parsed.success) throw new Error("Workspace response is invalid.");
+        if (response.status === 401) { router.replace("/auth/login?returnTo=%2Fapp"); return; }
+        if (!response.ok) {
+          const body = await response.json().catch(() => null) as { error?: unknown } | null;
+          const message = typeof body?.error === "string" ? body.error : `HTTP ${response.status}`;
+          throw new Error(`Workspace GET failed (${response.status}): ${message}`);
+        }
+        const payload: unknown = await response.json();
+        const parsed = workspaceDataSchema.safeParse(payload);
+        if (!parsed.success) {
+          const details = parsed.error.issues.slice(0, 3).map((issue) => `${issue.path.join(".")}: ${issue.message}`).join("; ");
+          throw new Error(`Workspace response schema mismatch: ${details}`);
+        }
         if (cancelled) return;
+        savedSnapshot.current = JSON.stringify(parsed.data);
         setData(parsed.data);
         setActiveConversationId(parsed.data.conversations[0]?.id ?? null);
         setStorageNotice("");
@@ -163,6 +176,7 @@ export function AppShell({ account }: AppShellProps) {
         if (cancelled) return;
         console.error("Unable to load account workspace.", {
           errorName: error instanceof Error ? error.name : "UnknownError",
+          message: error instanceof Error ? error.message : String(error),
         });
         setStorageNotice("Не удалось загрузить данные аккаунта. Повторите попытку.");
         setPersistencePaused(true);
@@ -174,15 +188,18 @@ export function AppShell({ account }: AppShellProps) {
     return () => {
       cancelled = true;
     };
-  }, [loadAttempt]);
+  }, [loadAttempt, router]);
 
   useEffect(() => {
     if (!storageReady || persistencePaused) return;
     const snapshot = data;
+    const serialized = JSON.stringify(snapshot);
+    if (serialized === savedSnapshot.current) return;
     const timeout = window.setTimeout(() => {
       const save = saveQueue.current.catch(() => undefined).then(() => saveWorkspaceData(snapshot));
       saveQueue.current = save;
       void save.then(() => {
+        savedSnapshot.current = serialized;
         setStorageNotice("");
         setStorageRecoveryRequired(false);
       }).catch((error: unknown) => {
@@ -508,6 +525,7 @@ export function AppShell({ account }: AppShellProps) {
 
   async function signOut() {
     try {
+      if (pendingConversationIds.size) { setWorkspaceNotice("Дождись окончания ответа перед выходом."); return; }
       const save = saveQueue.current
         .catch(() => undefined)
         .then(() => saveWorkspaceData(data));
@@ -515,7 +533,7 @@ export function AppShell({ account }: AppShellProps) {
       await save;
       const result = await authClient.signOut();
       if (result.error) throw new Error("Neon Auth sign out failed.");
-      router.replace("/auth");
+      router.replace("/");
       router.refresh();
     } catch (error) {
       console.error("Unable to sign out.", {
@@ -564,9 +582,10 @@ export function AppShell({ account }: AppShellProps) {
         activeWorkspace={activeWorkspace}
         collapsed={data.preferences.sidebarCollapsed && !mobileSidebarOpen}
         conversationCount={data.conversations.length}
-        userName={data.preferences.userName.trim() || account.name || account.email}
+        userName={account.name || account.email}
         userEmail={account.email}
         onSignOut={signOut}
+        onAccount={setAccountSection}
         onCollapse={() => updatePreference("sidebarCollapsed", !data.preferences.sidebarCollapsed)}
         onNavigate={navigate}
         onNewChat={newChat}
@@ -719,6 +738,8 @@ export function AppShell({ account }: AppShellProps) {
         }}
         onSubmit={submitName}
       />
+
+      {accountSection && <AccountDialog section={accountSection} account={account} onClose={() => setAccountSection(null)} onUpdated={() => router.refresh()} />}
 
       <AlertDialog open={confirmTarget !== null} onOpenChange={(open) => !open && setConfirmTarget(null)}>
         <AlertDialogContent className="border-[#302d27] bg-[#151515] text-[#f5f5f5]">

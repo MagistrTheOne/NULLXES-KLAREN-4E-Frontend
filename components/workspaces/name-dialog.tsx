@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, type FormEvent } from "react";
+import { useState, type FormEvent } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -22,7 +22,11 @@ interface NameDialogProps {
   onSubmit: (name: string) => void;
 }
 
-export function NameDialog({
+export function NameDialog(props: NameDialogProps) {
+  return <NameDialogForm key={`${props.open}:${props.initialValue}`} {...props} />;
+}
+
+function NameDialogForm({
   open,
   title,
   description,
@@ -33,9 +37,6 @@ export function NameDialog({
 }: NameDialogProps) {
   const [name, setName] = useState(initialValue);
 
-  useEffect(() => {
-    if (open) setName(initialValue);
-  }, [initialValue, open]);
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();

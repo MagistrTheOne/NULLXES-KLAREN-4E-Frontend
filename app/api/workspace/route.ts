@@ -68,27 +68,27 @@ export async function GET(): Promise<Response> {
       projects: projects.map((project) => ({
         id: project.id,
         name: project.name,
-        createdAt: project.createdAt,
+        createdAt: new Date(project.createdAt).toISOString(),
       })),
       conversations: conversations
         .map((conversation) => ({
           id: conversation.id,
           title: conversation.title,
-          createdAt: conversation.createdAt,
-          updatedAt: conversation.updatedAt,
+          createdAt: new Date(conversation.createdAt).toISOString(),
+          updatedAt: new Date(conversation.updatedAt).toISOString(),
           projectId: conversation.projectId,
           messages: (messagesByConversation.get(conversation.id) ?? []).map(
             (message) => ({
               id: message.id,
               role: message.role,
               content: message.content,
-              createdAt: message.createdAt,
+              createdAt: new Date(message.createdAt).toISOString(),
               attachments: message.attachments,
             }),
           ),
         }))
         .sort((left, right) => right.updatedAt.localeCompare(left.updatedAt)),
-      preferences: preferenceRows[0]?.preferences ?? DEFAULT_PREFERENCES,
+      preferences: { ...DEFAULT_PREFERENCES, ...preferenceRows[0]?.preferences },
     });
   } catch (error) {
     console.error("Workspace read failed.", {
@@ -199,6 +199,8 @@ export async function PUT(request: Request): Promise<Response> {
   } catch (error) {
     console.error("Workspace write failed.", {
       errorName: error instanceof Error ? error.name : "UnknownError",
+      code: typeof error === "object" && error !== null && "code" in error ? error.code : undefined,
+      constraint: typeof error === "object" && error !== null && "constraint" in error ? error.constraint : undefined,
     });
     return Response.json(
       { error: "Не удалось сохранить данные аккаунта." },

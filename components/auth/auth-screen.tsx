@@ -1,264 +1,124 @@
 "use client";
 
-import { useState, type FormEvent } from "react";
-import { useRouter } from "next/navigation";
+import { useEffect, useState, type FormEvent } from "react";
+import Link from "next/link";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { Eye, EyeSlash } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { authClient } from "@/lib/auth/client";
+import { AuthLayout } from "./auth-layout";
+import { authErrorMessage, needsEmailVerification } from "./auth-errors";
 
-type AuthMode = "sign-in" | "sign-up" | "forgot" | "otp" | "reset";
+type Mode = "login" | "register" | "forgot-password" | "reset-password" | "verify-email";
+const titles: Record<Mode, string> = { login: "С возвращением", register: "Создать аккаунт", "forgot-password": "Восстановление доступа", "reset-password": "Новый пароль", "verify-email": "Подтвердите email" };
+const descriptions: Record<Mode, string> = { login: "Войди, чтобы продолжить общение с Кларен.", register: "Создай аккаунт, чтобы начать общение с Кларен.", "forgot-password": "Укажи email своего аккаунта для восстановления доступа.", "reset-password": "Выбери новый пароль для своего аккаунта.", "verify-email": "Введи код из письма или запроси новый." };
 
-export function AuthScreen({
-  configured,
-  initialResetToken,
-}: {
-  configured: boolean;
-  initialResetToken: string;
-}) {
+export function AuthScreen({ configured, initialResetToken }: { configured: boolean; initialResetToken: string }) {
   const router = useRouter();
-  const [mode, setMode] = useState<AuthMode>(
-    initialResetToken ? "reset" : "sign-in",
-  );
+  const params = useSearchParams();
+  const pathname = usePathname();
+  const mode = (pathname.split("/").at(-1) || "login") as Mode;
   const [name, setName] = useState("");
-  const [email, setEmail] = useState("");
+  const [email, setEmail] = useState(params.get("email") || "");
   const [password, setPassword] = useState("");
+  const [confirmation, setConfirmation] = useState("");
+  const [visible, setVisible] = useState(false);
   const [otp, setOtp] = useState("");
-  const [otpSent, setOtpSent] = useState(false);
-  const [resetToken] = useState(initialResetToken);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState("");
-  const [notice, setNotice] = useState("");
+  const [notice, setNotice] = useState(params.get("reset") === "success" ? "Пароль изменён. Войди с новым паролем." : "");
+  const [cooldown, setCooldown] = useState(0);
+  const [resetSent, setResetSent] = useState(false);
+  const [verified, setVerified] = useState(false);
+  // This flow has a single permitted destination; query strings cannot redirect off-site.
+  const destination = "/app";
+  useEffect(() => {
+    if (!cooldown) return;
+    const timer = window.setTimeout(() => setCooldown((value) => value - 1), 1000);
+    return () => window.clearTimeout(timer);
+  }, [cooldown]);
 
-  async function completeSignIn(result: { error?: { message?: string } | null }) {
-    if (result.error) {
-      setError(result.error.message || "Не удалось войти. Проверьте данные.");
-      return;
-    }
-    router.replace("/");
-    router.refresh();
+  async function enterWorkspace() {
+    const session = await authClient.getSession({ query: { disableCookieCache: true } });
+    if (session.error) { setError(authErrorMessage(session.error)); return; }
+    if (session.data?.user) { router.replace(destination); router.refresh(); return; }
+    router.replace(`/auth/login?email=${encodeURIComponent(email.trim())}`);
+  }
+
+  async function sendCode() {
+    if (pending || cooldown || !email.trim()) return;
+    setPending(true); setError(""); setNotice("");
+    try {
+      const result = await authClient.emailOtp.sendVerificationOtp({ email: email.trim(), type: "email-verification" });
+      if (result.error) { setError(authErrorMessage(result.error)); return; }
+      setNotice("Запрос принят. Проверь почту, включая папку «Спам»."); setCooldown(60);
+    } catch (error) { setError(authErrorMessage(error)); }
+    finally { setPending(false); }
   }
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    setError("");
-    setNotice("");
+    if (pending) return;
+    setError(""); setNotice("");
+    if (!configured) { setError("Вход временно недоступен. Попробуй позже."); return; }
+    if ((mode === "register" || mode === "reset-password") && password !== confirmation) { setError("Пароли не совпадают."); return; }
+    if (mode === "register" && !name.trim()) { setError("Укажи имя пользователя."); return; }
     setPending(true);
-
     try {
-      if (!configured) {
-        setError("Регистрация и вход временно недоступны.");
-        return;
-      }
-
-      if (mode === "sign-in") {
-        await completeSignIn(await authClient.signIn.email({ email, password }));
-      } else if (mode === "sign-up") {
-        const result = await authClient.signUp.email({ name, email, password });
-        if (result.error) {
-          setError(result.error.message || "Не удалось создать аккаунт.");
-        } else if (result.data?.user) {
-          router.replace("/");
-          router.refresh();
-        } else {
-          setMode("sign-in");
-          setNotice("Аккаунт создан. Теперь можно войти по email и паролю.");
-        }
-      } else if (mode === "forgot") {
-        const result = await authClient.requestPasswordReset({
-          email,
-          redirectTo: `${window.location.origin}/auth`,
-        });
-        if (result.error) {
-          setError(result.error.message || "Не удалось отправить ссылку для восстановления.");
-        } else {
-          setNotice("Если аккаунт существует, инструкция по восстановлению отправлена на почту.");
-        }
-      } else if (mode === "reset") {
-        const result = await authClient.resetPassword({
-          newPassword: password,
-          token: resetToken,
-        });
-        if (result.error) {
-          setError(result.error.message || "Не удалось изменить пароль.");
-        } else {
-          setMode("sign-in");
-          setPassword("");
-          setNotice("Пароль изменён. Войдите с новым паролем.");
-        }
-      } else if (!otpSent) {
-        const result = await authClient.emailOtp.sendVerificationOtp({
-          email,
-          type: "sign-in",
-        });
-        if (result.error) {
-          setError(result.error.message || "Не удалось отправить код.");
-        } else {
-          setOtpSent(true);
-          setNotice("Код отправлен на почту.");
-        }
+      if (mode === "login") {
+        const result = await authClient.signIn.email({ email: email.trim(), password });
+        if (needsEmailVerification(result.error)) { router.push(`/auth/verify-email?email=${encodeURIComponent(email.trim())}`); return; }
+        if (result.error) { setError(authErrorMessage(result.error)); return; }
+        await enterWorkspace();
+      } else if (mode === "register") {
+        const result = await authClient.signUp.email({ name: name.trim(), email: email.trim(), password, callbackURL: `${window.location.origin}/app` });
+        if (result.error) { setError(authErrorMessage(result.error)); return; }
+        const session = await authClient.getSession({ query: { disableCookieCache: true } });
+        if (session.error) { setError(authErrorMessage(session.error)); return; }
+        if (session.data?.user) { router.replace(destination); router.refresh(); return; }
+        router.push(`/auth/verify-email?email=${encodeURIComponent(email.trim())}`);
+      } else if (mode === "forgot-password") {
+        const result = await authClient.requestPasswordReset({ email: email.trim(), redirectTo: `${window.location.origin}/auth/reset-password` });
+        if (result.error) { setError(authErrorMessage(result.error)); return; }
+        setResetSent(true); setCooldown(60); setNotice("Если аккаунт с таким адресом существует, инструкция по восстановлению придёт на почту. Проверь также папку «Спам».");
+      } else if (mode === "reset-password") {
+        if (!initialResetToken) { setError("Ссылка недействительна. Запроси новую инструкцию."); return; }
+        const result = await authClient.resetPassword({ newPassword: password, token: initialResetToken });
+        if (result.error) { setError(authErrorMessage(result.error)); return; }
+        router.replace("/auth/login?reset=success");
       } else {
-        await completeSignIn(await authClient.signIn.emailOtp({ email, otp }));
+        const result = await authClient.emailOtp.verifyEmail({ email: email.trim(), otp });
+        if (result.error) { setError(authErrorMessage(result.error)); return; }
+        setVerified(true); await enterWorkspace();
       }
-    } catch (requestError) {
-      console.error("Managed Auth request failed.", {
-        errorName:
-          requestError instanceof Error ? requestError.name : "UnknownError",
-      });
-      setError("Не удалось связаться с сервисом авторизации. Повторите попытку.");
-    } finally {
-      setPending(false);
+    } catch (error) {
+      if ((mode === "login" || mode === "register") && needsEmailVerification(error)) {
+        router.push(`/auth/verify-email?email=${encodeURIComponent(email.trim())}`);
+      } else setError(authErrorMessage(error));
     }
+    finally { setPending(false); }
   }
 
-  const title =
-    mode === "sign-up"
-      ? "Создать аккаунт"
-      : mode === "forgot"
-        ? "Восстановить пароль"
-        : mode === "reset"
-          ? "Новый пароль"
-          : mode === "otp"
-            ? "Вход по коду"
-            : "Войти в аккаунт";
-
-  return (
-    <main className="flex min-h-screen items-center justify-center bg-[#080808] px-5 py-10 text-[#f5f5f5]">
-      <section className="w-full max-w-[420px] rounded-xl border border-[#292929] bg-[#101010] p-6 shadow-[0_24px_100px_rgba(0,0,0,0.35)] sm:p-8">
-        <div className="text-center">
-          <div className="font-serif text-5xl leading-none text-[#c6a46a]">N</div>
-          <p className="mt-4 text-[10px] font-medium tracking-[0.35em] text-[#c6a46a]">
-            NULLXES
-          </p>
-          <h1 className="mt-3 text-xl font-medium tracking-wide">KLAREN 4E</h1>
-          <p className="mt-2 text-sm text-[#888]">{title}</p>
-        </div>
-
-        {!configured ? (
-          <p role="status" className="mt-7 rounded-lg border border-[#493a29] bg-[#17130d] px-4 py-3 text-sm leading-6 text-[#e2d2b2]">
-            Регистрация пока не подключена. Попробуйте позже.
-          </p>
-        ) : (
-          <form onSubmit={submit} className="mt-7 space-y-4">
-            {mode === "sign-up" && (
-              <label className="block text-xs text-[#b8b2a7]">
-                Имя
-                <Input
-                  autoComplete="name"
-                  required
-                  maxLength={60}
-                  value={name}
-                  onChange={(event) => setName(event.target.value)}
-                  className="mt-2 border-[#302d27] bg-[#0b0b0b]"
-                />
-              </label>
-            )}
-
-            {mode !== "reset" && (
-              <label className="block text-xs text-[#b8b2a7]">
-                Email
-                <Input
-                  type="email"
-                  autoComplete="email"
-                  required
-                  maxLength={254}
-                  value={email}
-                  onChange={(event) => setEmail(event.target.value)}
-                  className="mt-2 border-[#302d27] bg-[#0b0b0b]"
-                />
-              </label>
-            )}
-
-            {(mode === "sign-in" || mode === "sign-up" || mode === "reset") && (
-              <label className="block text-xs text-[#b8b2a7]">
-                {mode === "reset" ? "Новый пароль" : "Пароль"}
-                <Input
-                  type="password"
-                  autoComplete={mode === "sign-in" ? "current-password" : "new-password"}
-                  required
-                  minLength={8}
-                  value={password}
-                  onChange={(event) => setPassword(event.target.value)}
-                  className="mt-2 border-[#302d27] bg-[#0b0b0b]"
-                />
-              </label>
-            )}
-
-            {mode === "otp" && otpSent && (
-              <label className="block text-xs text-[#b8b2a7]">
-                Код из письма
-                <Input
-                  inputMode="numeric"
-                  autoComplete="one-time-code"
-                  required
-                  maxLength={12}
-                  value={otp}
-                  onChange={(event) => setOtp(event.target.value)}
-                  className="mt-2 border-[#302d27] bg-[#0b0b0b]"
-                />
-              </label>
-            )}
-
-            {error && (
-              <p role="alert" className="rounded-md border border-[#593434] bg-[#201212] px-3 py-2 text-sm text-[#e2a2a2]">
-                {error}
-              </p>
-            )}
-            {notice && (
-              <p role="status" className="rounded-md border border-[#493a29] bg-[#17130d] px-3 py-2 text-sm text-[#e2d2b2]">
-                {notice}
-              </p>
-            )}
-
-            <Button
-              type="submit"
-              disabled={pending}
-              className="w-full bg-[#c6a46a] text-[#080808] hover:bg-[#d3b77f]"
-            >
-              {pending
-                ? "Подождите…"
-                : mode === "sign-up"
-                  ? "Создать аккаунт"
-                  : mode === "forgot"
-                    ? "Отправить инструкцию"
-                    : mode === "reset"
-                      ? "Сохранить пароль"
-                      : mode === "otp" && !otpSent
-                        ? "Отправить код"
-                        : mode === "otp"
-                          ? "Войти по коду"
-                          : "Войти"}
-            </Button>
-          </form>
-        )}
-
-        {configured && (
-          <div className="mt-5 flex flex-wrap justify-center gap-x-4 gap-y-2 text-xs text-[#aaa]">
-            {mode === "sign-in" && (
-              <>
-                <button type="button" onClick={() => { setError(""); setNotice(""); setMode("sign-up"); }} className="hover:text-[#e2c99d]">
-                  Создать аккаунт
-                </button>
-                <button type="button" onClick={() => { setError(""); setNotice(""); setMode("forgot"); }} className="hover:text-[#e2c99d]">
-                  Забыли пароль?
-                </button>
-                <button type="button" onClick={() => { setError(""); setNotice(""); setOtpSent(false); setMode("otp"); }} className="hover:text-[#e2c99d]">
-                  Войти по коду
-                </button>
-              </>
-            )}
-            {mode !== "sign-in" && mode !== "reset" && (
-              <button type="button" onClick={() => { setError(""); setNotice(""); setMode("sign-in"); }} className="hover:text-[#e2c99d]">
-                Вернуться ко входу
-              </button>
-            )}
-            {mode === "reset" && (
-              <button type="button" onClick={() => { setError(""); setNotice(""); setMode("sign-in"); }} className="hover:text-[#e2c99d]">
-                Вернуться ко входу
-              </button>
-            )}
-          </div>
-        )}
-      </section>
-    </main>
-  );
+  const needsPassword = mode === "login" || mode === "register" || mode === "reset-password";
+  const missingToken = mode === "reset-password" && !initialResetToken;
+  return <AuthLayout title={titles[mode]} description={descriptions[mode]}>
+    {!configured && <p role="alert" className="auth-message auth-message-error">Вход временно недоступен. Попробуй позже.</p>}
+    {missingToken ? <p className="auth-message auth-message-error" role="alert">Ссылка недействительна или устарела. <Link href="/auth/forgot-password">Запросить новую</Link></p> : <form className="auth-form" onSubmit={submit}>
+      <fieldset disabled={pending || !configured} className="contents">
+        {mode === "register" && <label>Имя пользователя<Input autoComplete="name" value={name} onChange={(e) => setName(e.target.value)} required maxLength={60} /></label>}
+        {mode !== "reset-password" && <label>Электронная почта<Input type="email" placeholder="you@example.com" autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} required maxLength={254} /></label>}
+        {needsPassword && <div><div className="auth-label-row"><label htmlFor="password">{mode === "reset-password" ? "Новый пароль" : "Пароль"}</label>{mode === "login" && <Link href="/auth/forgot-password">Забыли пароль?</Link>}</div><div className="auth-password-field"><Input id="password" type={visible ? "text" : "password"} autoComplete={mode === "login" ? "current-password" : "new-password"} value={password} onChange={(e) => setPassword(e.target.value)} required minLength={mode === "login" ? 1 : 8} maxLength={128} /><button type="button" onClick={() => setVisible(!visible)} aria-label={visible ? "Скрыть пароль" : "Показать пароль"} aria-pressed={visible}>{visible ? <EyeSlash size={18} /> : <Eye size={18} />}</button></div></div>}
+        {(mode === "register" || mode === "reset-password") && <label>Повторите пароль<Input type={visible ? "text" : "password"} autoComplete="new-password" value={confirmation} onChange={(e) => setConfirmation(e.target.value)} required minLength={8} maxLength={128} /></label>}
+        {mode === "verify-email" && <label>Код из письма<Input inputMode="numeric" autoComplete="one-time-code" placeholder="000000" value={otp} onChange={(e) => setOtp(e.target.value.replace(/\D/g, ""))} required pattern="[0-9]{6}" minLength={6} maxLength={6} /></label>}
+        {error && <p role="alert" className="auth-message auth-message-error">{error}</p>}
+        {notice && <p role="status" className="auth-message auth-message-notice">{notice}</p>}
+        <Button type="submit" className="auth-submit" disabled={pending || !configured || verified || (mode === "forgot-password" && cooldown > 0)}>{pending ? "Подождите…" : mode === "login" ? "Войти" : mode === "register" ? "Создать аккаунт" : mode === "forgot-password" ? resetSent ? cooldown ? `Повторить через ${cooldown} с` : "Отправить ещё раз" : "Продолжить" : mode === "reset-password" ? "Сохранить пароль" : "Подтвердить email"}</Button>
+      </fieldset>
+    </form>}
+    {mode === "login" && <p className="auth-switch">Нет аккаунта? <Link href="/auth/register">Зарегистрироваться</Link></p>}
+    {mode === "register" && <p className="auth-switch">Уже есть аккаунт? <Link href="/auth/login">Войти</Link></p>}
+    {mode === "forgot-password" && <p className="auth-switch"><Link href="/auth/login">Вернуться ко входу</Link></p>}
+    {mode === "verify-email" && <button type="button" className="auth-resend" disabled={pending || cooldown > 0 || !configured || !email.trim()} onClick={() => void sendCode()}>{cooldown ? `Запросить новый код через ${cooldown} с` : "Запросить новый код"}</button>}
+  </AuthLayout>;
 }
