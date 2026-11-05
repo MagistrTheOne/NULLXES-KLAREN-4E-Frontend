@@ -20,6 +20,7 @@ const chatRequestMessageSchema = z.object({
 const chatPersonalizationSchema = z.object({
   userName: z.string().max(60).default(""),
   userContext: z.string().max(500).default(""),
+  pinnedMemories: z.array(z.string().max(240)).max(10).default([]),
   sharpness: z.enum(["balanced", "wry", "sharp"]).default("wry"),
   roleplayEnabled: z.boolean().default(false),
   adultThemesEnabled: z.boolean().default(false),
