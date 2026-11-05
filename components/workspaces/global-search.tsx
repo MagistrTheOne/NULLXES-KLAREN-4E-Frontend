@@ -17,7 +17,7 @@ export function GlobalSearch({ open, conversations, projects, onClose, onSelect 
   const [query, setQuery] = useState("");
   const input = useRef<HTMLInputElement>(null);
   useEffect(() => {
-    if (open) { setQuery(""); requestAnimationFrame(() => input.current?.focus()); }
+    if (open) { const frame = requestAnimationFrame(() => { setQuery(""); input.current?.focus(); }); return () => cancelAnimationFrame(frame); }
   }, [open]);
 
   const results = useMemo(() => {

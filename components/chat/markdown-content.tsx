@@ -190,7 +190,6 @@ export function MarkdownContent({ value }: { value: string }) {
 function CodeFence({ language, code }: { language: string; code: string }) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(code);
-  useEffect(() => { if (!editing) setDraft(code); }, [code, editing]);
 
   function downloadCode() {
     const extensions: Record<string, string> = {
@@ -216,7 +215,7 @@ function CodeFence({ language, code }: { language: string; code: string }) {
           {language}
         </CodeBlockTitle>
         <CodeBlockActions>
-          <button type="button" className="rounded px-2 py-1 text-[11px] text-[#c6a46a] hover:bg-[#242019]" onClick={() => setEditing((current) => !current)}>{editing ? "Закрыть редактор" : "Редактор"}</button>
+          <button type="button" className="rounded px-2 py-1 text-[11px] text-[#c6a46a] hover:bg-[#242019]" onClick={() => { if (!editing) setDraft(code); setEditing((current) => !current); }}>{editing ? "Закрыть редактор" : "Редактор"}</button>
           <button type="button" className="rounded px-2 py-1 text-[11px] text-[#c6a46a] hover:bg-[#242019]" onClick={downloadCode}>Скачать</button>
           <CodeBlockCopyButton value={editing ? draft : code} aria-label="Копировать код" />
         </CodeBlockActions>

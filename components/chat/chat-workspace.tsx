@@ -111,8 +111,8 @@ export function ChatWorkspace({
 
   useEffect(() => {
     const speech = window as SpeechWindow;
-    setVoiceSupported(Boolean(speech.SpeechRecognition || speech.webkitSpeechRecognition));
-    return () => { voiceRef.current?.stop(); voiceRef.current = null; };
+    const frame = requestAnimationFrame(() => setVoiceSupported(Boolean(speech.SpeechRecognition || speech.webkitSpeechRecognition)));
+    return () => { cancelAnimationFrame(frame); voiceRef.current?.stop(); voiceRef.current = null; };
   }, []);
 
   function toggleVoiceInput() {
