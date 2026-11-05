@@ -89,6 +89,7 @@ export function ChatWorkspace({
   const imageInput = useRef<HTMLInputElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const messages = conversation?.messages ?? EMPTY_MESSAGES;
+  const telegramReadOnly = conversation?.id.startsWith("telegram:") ?? false;
 
   useEffect(() => {
     transcriptEnd.current?.scrollIntoView({
@@ -202,7 +203,7 @@ export function ChatWorkspace({
   }
 
   function submitMessage(text = draft) {
-    if (isTyping || uploading || (!text.trim() && attachments.length === 0)) return;
+    if (telegramReadOnly || isTyping || uploading || (!text.trim() && attachments.length === 0)) return;
     if (!text.trim() && !attachments.some((attachment) => attachment.contentText?.trim() || attachment.previewDataUrl || attachment.remoteFileId)) return;
     onSend(text.trim(), attachments);
     setDraft("");
@@ -271,7 +272,7 @@ export function ChatWorkspace({
                     key={suggestion}
                     type="button"
                     onClick={() => submitMessage(suggestion)}
-                    disabled={isTyping}
+                    disabled={isTyping || telegramReadOnly}
                     className="rounded-full border border-[#33302a] bg-[#10100e] px-3.5 py-2 text-left text-xs leading-5 text-[#c5bcae] transition-colors hover:border-[#675432] hover:text-[#e3cca0] disabled:opacity-50"
                   >
                     {suggestion}
@@ -352,6 +353,7 @@ export function ChatWorkspace({
               ))}
             </div>
           )}
+          {telegramReadOnly && <p className="px-3 pb-2 text-xs text-[#bfa778]">Telegram · история синхронизирована. Ответить можно в Telegram; здесь пока просмотр.</p>}
           {attachmentError && (
             <p role="alert" className="px-3 pb-1 text-xs text-[#e1a0a0]">{attachmentError}</p>
           )}
@@ -362,6 +364,7 @@ export function ChatWorkspace({
             <button
               type="button"
               onClick={() => anyFileInput.current?.click()}
+              disabled={telegramReadOnly}
               aria-label="Добавить файл или изображение"
               className="mb-0.5 flex size-10 shrink-0 items-center justify-center rounded-full border border-[#39352e] text-[#c7bca9] transition-colors hover:border-[#75603b] hover:text-[#e3c88e]"
             >
@@ -371,8 +374,8 @@ export function ChatWorkspace({
             <input ref={anyFileInput} type="file" multiple className="hidden" onChange={(event) => void handleFiles(event)} />
             <input ref={imageInput} type="file" accept="image/png,image/jpeg" multiple className="hidden" onChange={(event) => void handleFiles(event)} />
 
-            <VoiceModeControl messages={messages} isTyping={isTyping} onSend={onSend} />
-            <Button type="button" variant="ghost" size="icon-lg" onClick={() => setVideoCallOpen((current) => !current)} aria-pressed={videoCallOpen} aria-label={videoCallOpen ? "Закрыть видеозвонок" : "Видеозвонок с Кларенсией"} title="KLAREN · видеозвонок" className="mb-0.5 size-9 rounded-full text-[#c4ac7c] hover:bg-[#28231c] hover:text-[#e1c78f]"><VideoCamera size={20}/></Button>
+            {!telegramReadOnly && <VoiceModeControl messages={messages} isTyping={isTyping} onSend={onSend} />}
+            <Button type="button" variant="ghost" size="icon-lg" onClick={() => setVideoCallOpen((current) => !current)} disabled={telegramReadOnly} aria-pressed={videoCallOpen} aria-label={videoCallOpen ? "Закрыть видеозвонок" : "Видеозвонок с Кларенсией"} title="KLAREN · видеозвонок" className="mb-0.5 size-9 rounded-full text-[#c4ac7c] hover:bg-[#28231c] hover:text-[#e1c78f]"><VideoCamera size={20}/></Button>
             <Textarea
               ref={textareaRef}
               rows={1}
@@ -380,7 +383,7 @@ export function ChatWorkspace({
               maxLength={8_000}
               onChange={(event) => setDraft(event.target.value)}
               onKeyDown={handleKeyDown}
-              placeholder="Напиши Кларенсии..."
+              placeholder={telegramReadOnly ? "История Telegram · только просмотр" : "Напиши Кларенсии..."}
               aria-label="Сообщение для KLAREN"
               disabled={isTyping}
               className="max-h-40 min-h-10 resize-none self-center overflow-y-auto border-0 bg-transparent px-3 py-2.5 text-sm leading-5 text-[#eee] shadow-none placeholder:text-[#777] focus-visible:border-0 focus-visible:ring-0 disabled:opacity-65"
@@ -388,6 +391,7 @@ export function ChatWorkspace({
             <button
               type="button"
               onClick={() => imageInput.current?.click()}
+              disabled={telegramReadOnly}
               aria-label="Добавить изображение для предпросмотра (анализ изображения пока недоступен)"
               className="mb-0.5 hidden size-9 shrink-0 items-center justify-center rounded-full text-[#a6a6a6] transition-colors hover:bg-[#242424] hover:text-[#e1c78f] sm:flex"
             >
@@ -406,7 +410,7 @@ export function ChatWorkspace({
               <button
                 type="button"
                 onClick={() => submitMessage()}
-                disabled={!draft.trim() && attachments.length === 0}
+                disabled={telegramReadOnly || (!draft.trim() && attachments.length === 0)}
                 aria-label="Отправить сообщение"
                 className="mb-0.5 flex size-10 shrink-0 items-center justify-center rounded-full bg-[#c6a46a] text-[#100e0a] transition-colors hover:bg-[#d6b77e] disabled:cursor-not-allowed disabled:opacity-40"
               >
