@@ -492,3 +492,16 @@ Retain qualifying friction even if it is later fixed or worked around; record th
 Before the final response, run one reporting pass. If candidates remain, from this file's directory run `npx --no-install next internal agent-feedback-instructions` once without piping or truncating its output. Follow its output or error guidance. If a network sandbox blocks it, retry with network access; if it still returns no output, continue normally.
 
 <!-- END:nextjs-agent-feedback -->
+
+
+## KLAREN VIDEO — EXTERNAL AUDIO CONTRACT (Nov 2026)
+
+- The video call uses Anam as a visual/audio-passthrough renderer only. Anam must not generate LLM responses or run its own voice. Use `enableAudioPassthrough: true` and the external client contract `CUSTOMER_CLIENT_V1` where required by Anam.
+- Never create or discover ElevenLabs Conversational Agents; this app does not use Agents or signed Agent URLs.
+- The model remains Grok through the existing authenticated `/api/chat` SSE endpoint; the future KLAREN 4E inference adapter will replace Grok behind that boundary.
+- Speech transcription stays behind `/api/voice/transcribe` (temporary xAI STT); future KLAREN ASR will replace it without modifying the video UI.
+- Only Eleven V4 Turbo is authorized for avatar TTS. It must be returned as raw `pcm_16000` and passed to Anam's `createAgentAudioInputStream({ encoding: "pcm_s16le", sampleRate: 16000, channels: 1 })`. Audio must play through Anam WebRTC, not in a second local speaker.
+- Anam persona `af7fc98c-b24a-47f9-b894-02a261d8763f`, avatar `71d29277-08ab-4cb7-88fd-606f284b6224`, and Anam voice resource `e738bbd5-79e5-424b-8cbc-6091ef01b82b` are three distinct IDs. **Do not pass Anam voice resource IDs to ElevenLabs as a voice_id without verifying them through the ElevenLabs voice API**. Resolve KLARENCIA MARIA via ElevenLabs voice lookup or explicit `ELEVENLABS_VOICE_ID` in the single root `.env`.
+- Preserve the accepted premium NULLXES frontend layout. The 16:9 desktop call view is full-screen and responsive on mobile. Do not expose Anam branding in custom UI. Provider-imposed watermark behavior remains subject to Anam account permissions.
+- API credentials are server-only. Never log them, commit them, include them in frontend JavaScript, or edit or delete the user's environment variables.
+- UI work exclusively on `main`, without branches/PRs. Do not change CI/CD without explicit permission.
