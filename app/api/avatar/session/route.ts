@@ -43,20 +43,6 @@ export async function POST(request: Request): Promise<Response> {
   if (attempts.size > 1000) attempts.clear();
 
   try {
-    // Read-only check of the saved persona: no remote mutation is performed.
-    const personaResponse = await fetch(`${ANAM}/v1/personas/${KLAREN_VIDEO_PERSONA_ID}`, {
-      headers: { Authorization: `Bearer ${anamKey}` }, cache: "no-store",
-      signal: AbortSignal.timeout(15_000),
-    });
-    if (!personaResponse.ok) return failure("Сохранённая персона KLAREN недоступна в Anam.", 502);
-    const persona = await personaResponse.json() as {
-      avatarId?: string; avatar?: { id?: string }; config?: { avatarId?: string };
-    };
-    const knownAvatar = persona.avatarId ?? persona.config?.avatarId ?? persona.avatar?.id;
-    if (knownAvatar && knownAvatar !== KLAREN_VIDEO_AVATAR_ID) {
-      return failure("Avatar ID сохранённой персоны не совпадает с утверждённым KLAREN Avatar ID.", 409);
-    }
-
     const tokenResponse = await fetch(`${ANAM}/v1/auth/session-token`, {
       method: "POST",
       headers: { Authorization: `Bearer ${anamKey}`, "Content-Type": "application/json" },
