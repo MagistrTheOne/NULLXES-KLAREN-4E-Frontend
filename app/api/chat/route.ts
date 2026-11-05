@@ -124,6 +124,7 @@ export async function POST(request: Request): Promise<Response> {
         const instructions = buildChatInstructions(parsed.data.personalization ?? {
           userName: "",
           userContext: "",
+          pinnedMemories: [],
           sharpness: "wry",
           roleplayEnabled: false,
           adultThemesEnabled: false,
