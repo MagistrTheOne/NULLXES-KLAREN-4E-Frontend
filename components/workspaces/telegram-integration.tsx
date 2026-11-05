@@ -33,7 +33,10 @@ export function TelegramIntegration() {
     } finally { setBusy(false); }
   }
 
-  useEffect(() => { void refresh(); }, []);
+  useEffect(() => {
+    const frame = requestAnimationFrame(() => { void refresh(); });
+    return () => cancelAnimationFrame(frame);
+  }, []);
 
   async function createLink() {
     setBusy(true);
