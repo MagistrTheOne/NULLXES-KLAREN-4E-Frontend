@@ -40,9 +40,25 @@ export function getNeonAuth(): NeonAuth {
 }
 
 export async function getAuthenticatedUser() {
-  const result = await getNeonAuth().getSession();
-  if (result.error) {
-    throw new Error(`Neon Auth session lookup failed (${result.error.code}).`);
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try {
+      const result = await getNeonAuth().getSession();
+      if (result.error) {
+        const code = String(result.error.code ?? "");
+        if (attempt === 0 && /NETWORK_TIMEOUT|CONNECT_TIMEOUT|FETCH_FAILED/i.test(code)) {
+          await new Promise((resolve) => setTimeout(resolve, 400));
+          continue;
+        }
+        throw new Error(`Neon Auth session lookup failed (${code}).`);
+      }
+      return result.data?.user ?? null;
+    } catch (error) {
+      if (attempt === 0 && /NETWORK_TIMEOUT|CONNECT_TIMEOUT|UND_ERR_CONNECT_TIMEOUT/i.test(String(error))) {
+        await new Promise((resolve) => setTimeout(resolve, 400));
+        continue;
+      }
+      throw error;
+    }
   }
-  return result.data?.user ?? null;
+  throw new Error("Neon Auth temporarily unavailable.");
 }
