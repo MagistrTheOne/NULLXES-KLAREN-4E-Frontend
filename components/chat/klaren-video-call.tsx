@@ -256,6 +256,10 @@ export function KlarenVideoCall({ open, onClose, messages, isTyping, onSend }: {
     voiceRequestRef.current = null;
     setLastSpeaker("КЛАРЕН");
     setLastCaption(reply.content);
+    // Reactions respond to KLAREN's own words, never random timers.
+    if (/хоба[\s-]*хоба|hoba[\s-]*hoba/i.test(reply.content)) flashReaction("💃");
+    else if (/ахах|ха-ха|рассмеш/i.test(reply.content)) flashReaction("😂");
+    else if (/тш[\s-]*ш|много знаешь/i.test(reply.content)) flashReaction("🤫");
     void playSpeech(reply.content);
     // Current request is resolved by the completed assistant message.
     // eslint-disable-next-line react-hooks/exhaustive-deps
