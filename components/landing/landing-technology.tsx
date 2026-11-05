@@ -1,20 +1,20 @@
 const architecture = [
-  ["Architecture", "Mixture of Experts"],
-  ["Intelligence", "KLAREN 4E"],
-  ["Research", "Vision / Audio / Physical AI"],
-  ["Direction", "Orbital Intelligence"],
+  ["Identity", "KLAREN 4E"],
+  ["Experience", "Conversation & reasoning"],
+  ["Ambition", "Beyond the screen"],
+  ["Vision", "Orbital Intelligence"],
 ] as const;
 
 export function LandingTechnology() {
   return (
     <section className="landing-technology" id="technology" aria-labelledby="technology-title">
       <div className="landing-technology-copy">
-        <p className="landing-eyebrow">03 / TECHNOLOGY · THE INTELLIGENCE</p>
-        <h2 id="technology-title">ENGINEERED TO EVOLVE.</h2>
-        <p>KLAREN 4E is built around a mixture-of-experts language model architecture, with ongoing research into multimodal perception and embodied intelligence.</p>
-        <p>Her development spans language, reasoning, vision, audio, and the systems required to bring intelligence into physical environments.</p>
-        <strong className="landing-tech-close">The model is only the beginning.</strong>
-        <a className="landing-text-link" href="https://huggingface.co/MagistrTheOne/NULLXES-KLAREN-4E" target="_blank" rel="noreferrer">Explore the Model <span aria-hidden="true">↗</span></a>
+        <p className="landing-eyebrow">03 / KLAREN · THE VISION</p>
+        <h2 id="technology-title">MORE THAN AN INTERFACE.</h2>
+        <p>Klaren is designed to be more than a voice behind a screen. A distinct intelligence, built to challenge expectations.</p>
+        <p>From conversation today to new forms of interaction tomorrow, NULLXES is building toward a wider world.</p>
+        <strong className="landing-tech-close">One intelligence. Different bodies.</strong>
+        <a className="landing-text-link" href="https://huggingface.co/MagistrTheOne/NULLXES-KLAREN-4E" target="_blank" rel="noreferrer">Discover KLAREN 4E <span aria-hidden="true">↗</span></a>
       </div>
       <dl className="technology-panel">
         {architecture.map(([label, value]) => (
