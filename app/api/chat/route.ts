@@ -8,6 +8,7 @@ import { buildChatInstructions } from "@/lib/chat/server/chat-instructions";
 import { ChatProviderError } from "@/lib/chat/server/provider-error";
 import { XAIChatAdapter } from "@/lib/chat/server/xai-adapter";
 import { getAuthenticatedUser } from "@/lib/auth/server";
+import { KLAREN_VIDEO_PROMPT } from "@/lib/avatar/klaren-persona";
 import { verifyFileProof } from "@/lib/chat/server/file-proof";
 import { readLimitedBody } from "@/lib/http/read-limited-body";
 
