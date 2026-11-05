@@ -1,3 +1,4 @@
+import { LandingMotion } from "@/components/landing/landing-motion";
 import { LandingHeader } from "@/components/landing/landing-header";
 import { LandingHero } from "@/components/landing/landing-hero";
 import { LandingProduct } from "@/components/landing/landing-product";
@@ -12,6 +13,7 @@ import { LandingFinalCta } from "@/components/landing/landing-final-cta";
 export function LandingPage() {
   return (
     <main className="landing-shell">
+      <LandingMotion />
       <LandingHeader />
       <LandingHero />
       <LandingProduct />
