@@ -12,6 +12,7 @@
   },
   "dependencies": {
     "@ai-sdk/xai": "^5.0.38",
+    "@anam-ai/js-sdk": "^4.29.1",
     "@base-ui/react": "^1.9.0",
     "@hookform/resolvers": "^7.0.2",
     "@neon/auth": "^0.8.2",
