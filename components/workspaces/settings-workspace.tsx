@@ -1,6 +1,6 @@
 "use client";
 
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import {
   BracketsCurly,
   Eye,
@@ -36,6 +36,15 @@ export function SettingsWorkspace({
   onPreferenceChange,
   onClearHistory,
 }: SettingsWorkspaceProps) {
+  const [newMemory, setNewMemory] = useState("");
+  const memories = preferences.pinnedMemories ?? [];
+  function addMemory() {
+    const text = newMemory.trim();
+    if (!text || memories.length >= 10) return;
+    onPreferenceChange("pinnedMemories", [...memories, { id: crypto.randomUUID(), text }]);
+    setNewMemory("");
+  }
+
   return (
     <div className="page-workspace overflow-y-auto">
       <div className="mx-auto w-full max-w-[820px] px-5 pb-12 pt-10 sm:px-8 lg:px-12">
@@ -81,6 +90,28 @@ export function SettingsWorkspace({
                 {preferences.userContext.length}/500
               </span>
             </label>
+          </div>
+        </section>
+
+        <section className="mt-5 overflow-hidden rounded-xl border border-[#292929] bg-[#101010]">
+          <div className="border-b border-[#242424] px-5 py-4">
+            <h2 className="text-[11px] font-medium tracking-[0.16em] text-[#c5b28d]">ЗАКРЕПЛЁННАЯ ПАМЯТЬ</h2>
+            <p className="mt-2 text-xs leading-5 text-[#858585]">Только то, что ты сохранил вручную. Кларен учитывает эти сведения в следующих разговорах. Любую запись можно удалить.</p>
+          </div>
+          <div className="space-y-3 p-5">
+            {memories.map((memory) => (
+              <div key={memory.id} className="flex items-start justify-between gap-3 border-b border-[#242424] pb-3">
+                <p className="min-w-0 flex-1 break-words text-sm text-[#e2e0db]">{memory.text}</p>
+                <button type="button" className="shrink-0 text-xs text-[#b9a182] hover:text-[#eed09b]" aria-label="Удалить запись из памяти" onClick={() => onPreferenceChange("pinnedMemories", memories.filter((item) => item.id !== memory.id))}>Удалить</button>
+              </div>
+            ))}
+            <label className="block text-xs text-[#c9bca5]">Новая запись
+              <Input className="mt-2 border-[#302d27] bg-[#0b0b0b]" value={newMemory} maxLength={240} onChange={(event) => setNewMemory(event.target.value)} placeholder="Что Кларен должна учитывать?" onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); addMemory(); } }} />
+            </label>
+            <div className="flex items-center justify-between">
+              <span className="text-[10px] text-[#858585]">{memories.length}/10 записей</span>
+              <Button type="button" variant="outline" disabled={!newMemory.trim() || memories.length >= 10} onClick={addMemory}>Закрепить</Button>
+            </div>
           </div>
         </section>
 
