@@ -125,6 +125,7 @@ export async function POST(request: Request): Promise<Response> {
           userName: "",
           userContext: "",
           pinnedMemories: [],
+          projectContext: "",
           sharpness: "wry",
           roleplayEnabled: false,
           adultThemesEnabled: false,
