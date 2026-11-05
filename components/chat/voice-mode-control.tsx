@@ -21,6 +21,7 @@ export function VoiceModeControl({
   const recorder = useRef<MediaRecorder | null>(null);
   const microphone = useRef<MediaStream | null>(null);
   const chunks = useRef<Blob[]>([]);
+  const discardRecording = useRef(false);
   const audio = useRef<HTMLAudioElement | null>(null);
   const audioUrl = useRef<string | null>(null);
   const controller = useRef<AbortController | null>(null);
@@ -49,6 +50,7 @@ export function VoiceModeControl({
       controller.current?.abort();
       audio.current?.pause();
       microphone.current?.getTracks().forEach((track) => track.stop());
+      discardRecording.current = true;
       recorder.current?.stop();
       if (audioUrl.current) URL.revokeObjectURL(audioUrl.current);
     };
@@ -123,12 +125,14 @@ export function VoiceModeControl({
       const mime = ["audio/webm;codecs=opus", "audio/webm", "audio/ogg;codecs=opus"].find((v) => MediaRecorder.isTypeSupported(v));
       if (!mime) { cleanupMicrophone(); setNotice("Нет поддерживаемого аудиоформата."); return; }
       chunks.current = [];
+      discardRecording.current = false;
       const active = new MediaRecorder(stream, { mimeType: mime });
       recorder.current = active;
       active.ondataavailable = (event) => { if (event.data.size) chunks.current.push(event.data); };
       active.onstop = () => {
         const blob = new Blob(chunks.current, { type: mime.split(";")[0] });
         cleanupMicrophone();
+        if (discardRecording.current) { setStage("idle"); return; }
         if (blob.size) void transmit(blob);
         else setStage("idle");
       };
@@ -159,6 +163,7 @@ export function VoiceModeControl({
     <div className="flex items-center gap-1.5">
       <button type="button" onClick={() => {
         if (enabled) {
+          discardRecording.current = true;
           recorder.current?.stop();
           stopPlayback();
           setWaiting(false);
