@@ -14,7 +14,7 @@ export function LandingTechnology() {
         <p>Klaren is designed to be more than a voice behind a screen. A distinct intelligence, built to challenge expectations.</p>
         <p>From conversation today to new forms of interaction tomorrow, NULLXES is building toward a wider world.</p>
         <strong className="landing-tech-close">One intelligence. Different bodies.</strong>
-        <a className="landing-text-link" href="https://huggingface.co/MagistrTheOne/NULLXES-KLAREN-4E" target="_blank" rel="noreferrer">Discover KLAREN 4E <span aria-hidden="true">↗</span></a>
+        <a className="landing-text-link" href="#about">Discover KLAREN 4E <span aria-hidden="true">↗</span></a>
       </div>
       <dl className="technology-panel">
         {architecture.map(([label, value]) => (
