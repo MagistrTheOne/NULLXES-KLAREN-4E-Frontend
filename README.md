@@ -21,12 +21,12 @@ The application currently uses demonstration responses. Live model inference and
 ## Technology Stack
 
 - Next.js 16 — App Router
-- React
+- React 19
 - TypeScript
 - Tailwind CSS 4
 - shadcn/ui — `bpzk` preset
 - Radix UI
-- Lucide Icons
+- Phosphor Icons
 
 ## Interface
 
@@ -34,40 +34,39 @@ The application is organized into six primary workspaces:
 
 | Workspace | Description |
 |---|---|
-| New Chat | Conversational interface for KLAREN 4E |
-| Conversations | Local conversation history and session management |
-| Model | Model information, capabilities, and development status |
-| Tools | Interface for future intelligence tools |
-| Projects | Project organization and associated conversations |
-| Settings | Interface configuration and preferences |
+| New Chat | Local chat experience with a replaceable response adapter |
+| Conversations | Search, rename, delete, and organize locally saved conversations |
+| Model | Model identity and an explicit account of what is not connected |
+| Tools | Honest availability states for local, preview, and unconnected features |
+| Projects | Create projects and associate conversations with them |
+| Settings | Sidebar, portrait, motion, keyboard, and local history preferences |
 
 The design follows the NULLXES visual identity: black and graphite surfaces, restrained metallic gold, minimal ornamentation, and a character-focused interface.
 
-## Architecture
+All chat content, projects, preferences, and locally selected image previews are stored in the current browser. No backend requests or model inference are made. Demo replies are clearly labeled, deterministic, and replaceable through the chat provider interface. Other file attachments are represented by their local names only; they are not uploaded or processed.
 
-The frontend is designed to separate presentation, application state, and inference communication.
+## Architecture
+The frontend separates reusable UI, workspace features, local persistence, and inference communication.
 
 ```text
 NULLXES KLAREN 4E
 │
 ├── Frontend Application
-│   ├── Chat Workspace
-│   ├── Conversation Management
-│   ├── Model Information
-│   ├── Tool Interfaces
-│   ├── Projects
-│   └── Settings
+│   ├── components/layout/       Application shell
+│   ├── components/navigation/   Responsive sidebar
+│   ├── components/chat/         Messages and composer
+│   └── components/workspaces/   Conversations, model, tools, projects, settings
 │
 ├── Application Services
-│   ├── Chat Adapter
-│   ├── Session Storage
-│   └── UI State
+│   ├── lib/chat/                ChatProvider and local demo adapter
+│   ├── lib/storage/             Browser persistence
+│   └── types/                   Shared contracts
 │
 └── Intelligence Runtime
     └── KLAREN 4E API (Future Integration)
 ```
 
-The initial implementation uses local demonstration data. The chat service abstraction is intended to support a future transition to the KLAREN 4E inference backend without requiring a complete frontend rewrite.
+`ChatProvider` is the integration boundary. `MockChatProvider` is the only provider selected by the UI. `KLARENRuntimeProvider` explicitly reports that the runtime is not configured; it does not make network requests.
 
 ## Getting Started
 
@@ -104,13 +103,15 @@ npm run start
 | Component | Status |
 |---|---|
 | Visual design | Concept approved |
-| Frontend architecture | MVP development |
-| Chat interface | Demo implementation |
-| Conversation persistence | MVP scope |
-| Project management | MVP scope |
+| Frontend architecture | Local MVP |
+| Chat interface | Functional, local demo replies |
+| Conversation persistence | Implemented in browser storage |
+| Project management | Implemented in browser storage |
+| Settings and navigation | Implemented |
+| Image attachments | Local preview only |
 | Model API integration | Planned |
 | Audio and vision integration | Planned |
-| Tool execution | Planned |
+| External tool execution | Planned |
 | Physical AI integration | Research roadmap |
 | Orbital AI capabilities | Long-term roadmap |
 
