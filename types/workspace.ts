@@ -13,6 +13,7 @@ export interface LocalAttachment {
   name: string;
   mediaType: string;
   previewDataUrl?: string;
+  contentText?: string;
 }
 
 export interface ChatMessage {
