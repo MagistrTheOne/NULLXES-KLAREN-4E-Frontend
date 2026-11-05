@@ -46,6 +46,28 @@ export function AuthScreen({ configured, initialResetToken }: { configured: bool
     router.replace(`/auth/login?email=${encodeURIComponent(email.trim())}`);
   }
 
+  async function signInWithGitHub() {
+    if (pending || !configured) return;
+    setPending(true);
+    setError("");
+    setNotice("");
+    try {
+      const result = await authClient.signIn.social({
+        provider: "github",
+        callbackURL: "/app",
+        errorCallbackURL: "/auth/login",
+      });
+      if (result.error) {
+        setError(authErrorMessage(result.error));
+        setPending(false);
+      }
+      // On success, Better Auth redirects the browser to GitHub.
+    } catch (error) {
+      setError(authErrorMessage(error));
+      setPending(false);
+    }
+  }
+
   async function sendCode() {
     if (pending || cooldown || !email.trim()) return;
     setPending(true); setError(""); setNotice("");
@@ -116,6 +138,15 @@ export function AuthScreen({ configured, initialResetToken }: { configured: bool
         <Button type="submit" className="auth-submit" disabled={pending || !configured || verified || (mode === "forgot-password" && cooldown > 0)}>{pending ? "Подождите…" : mode === "login" ? "Войти" : mode === "register" ? "Создать аккаунт" : mode === "forgot-password" ? resetSent ? cooldown ? `Повторить через ${cooldown} с` : "Отправить ещё раз" : "Продолжить" : mode === "reset-password" ? "Сохранить пароль" : "Подтвердить email"}</Button>
       </fieldset>
     </form>}
+    {(mode === "login" || mode === "register") && configured && (
+      <div className="auth-social-login">
+        <p className="auth-switch">Или продолжить через</p>
+        <Button type="button" variant="outline" className="auth-submit" disabled={pending} onClick={() => void signInWithGitHub()}>
+          <svg aria-hidden="true" width="19" height="19" viewBox="0 0 24 24" fill="currentColor"><path d="M12 .75a11.25 11.25 0 0 0-3.558 21.925c.562.105.768-.244.768-.543 0-.268-.01-.977-.015-1.917-3.126.679-3.786-1.506-3.786-1.506-.511-1.299-1.247-1.645-1.247-1.645-1.02-.697.078-.683.078-.683 1.129.079 1.722 1.159 1.722 1.159 1.003 1.718 2.631 1.222 3.273.935.102-.726.393-1.222.715-1.503-2.495-.284-5.118-1.247-5.118-5.56 0-1.229.439-2.233 1.159-3.021-.116-.285-.503-1.43.11-2.98 0 0 .944-.302 3.094 1.154a10.79 10.79 0 0 1 5.632 0c2.148-1.456 3.09-1.154 3.09-1.154.615 1.55.228 2.695.112 2.98.722.788 1.158 1.792 1.158 3.021 0 4.324-2.627 5.273-5.13 5.552.404.35.764 1.042.764 2.1 0 1.517-.014 2.74-.014 3.113 0 .302.203.654.774.542A11.252 11.252 0 0 0 12 .75Z"/></svg>
+          Продолжить с GitHub
+        </Button>
+      </div>
+    )}
     {mode === "login" && <p className="auth-switch">Нет аккаунта? <Link href="/auth/register">Зарегистрироваться</Link></p>}
     {mode === "register" && <p className="auth-switch">Уже есть аккаунт? <Link href="/auth/login">Войти</Link></p>}
     {mode === "forgot-password" && <p className="auth-switch"><Link href="/auth/login">Вернуться ко входу</Link></p>}
