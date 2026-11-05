@@ -62,7 +62,7 @@ interface ChatWorkspaceProps {
   onNewChat: () => void;
   onRename: (conversation: Conversation) => void;
   onTogglePortrait: () => void;
-  onSend: (text: string, attachments: LocalAttachment[]) => void;
+  onSend: (text: string, attachments: LocalAttachment[], mode?: "chat" | "video") => void;
   onCancel: () => void;
   onRegenerate: () => void;
   onBranch: (messageId: string) => void;
@@ -480,7 +480,7 @@ export function ChatWorkspace({
           {enterToSend ? "Enter — отправить" : "Ctrl/⌘ + Enter — отправить"} · Shift + Enter — новая строка
         </p>
       </div>
-      <KlarenVideoCall open={videoCallOpen} onClose={() => setVideoCallOpen(false)} messages={messages} isTyping={isTyping} onSend={onSend} />
+      <KlarenVideoCall open={videoCallOpen} onClose={() => setVideoCallOpen(false)} messages={messages} isTyping={isTyping} onSend={(text, attachments) => onSend(text, attachments, "video")} />
     </div>
   );
 }
