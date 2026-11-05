@@ -1,9 +1,10 @@
-import { getAuthenticatedUser } from "@/lib/auth/server";
+import { requireVoiceUser } from "@/lib/voice/server/auth";
 import { resolveKlarenciaVoice, voiceModelId } from "@/lib/voice/server/eleven-v4";
 
 export async function GET(): Promise<Response> {
-  const user = await getAuthenticatedUser().catch(() => null);
-  if (!user) return Response.json({ error: "Требуется авторизация." }, { status: 401 });
+  const account = await requireVoiceUser();
+  if (account instanceof Response) return account;
+  const user = account;
   if (!process.env.ELEVENLABS_API_KEY || !process.env.XAI_API_KEY) {
     return Response.json({ ready: false, model: voiceModelId(), message: "Голосовой backend не настроен." }, { status: 503 });
   }
