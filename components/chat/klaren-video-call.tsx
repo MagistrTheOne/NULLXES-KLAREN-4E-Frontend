@@ -7,6 +7,7 @@ import {
   PhoneDisconnect, Smiley, SpeakerHigh, X, ArrowsOut, ArrowsIn,
 } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/button";
+import type { ChatMessage, LocalAttachment } from "@/types/workspace";
 
 type Client = ReturnType<typeof createClient>;
 type CallStatus = "preparing" | "ready" | "connecting" | "connected" | "error";
@@ -17,12 +18,19 @@ const CUE_REACTIONS: Record<string, string> = {
 };
 const SHOWN_MILLISECONDS = 2400;
 
-export function KlarenVideoCall({ open, onClose }: { open: boolean; onClose: () => void }) {
+export function KlarenVideoCall({ open, onClose, messages, isTyping, onSend }: { open: boolean; onClose: () => void; messages: ChatMessage[]; isTyping: boolean; onSend: (text: string, attachments: LocalAttachment[]) => void }) {
   const videoId = "klaren-live-avatar-video";
   const avatarRef = useRef<HTMLVideoElement>(null);
   const previewRef = useRef<HTMLVideoElement>(null);
   const clientRef = useRef<Client | null>(null);
   const cameraRef = useRef<MediaStream | null>(null);
+  const microphoneRef = useRef<MediaStream | null>(null);
+  const recordingRef = useRef<MediaRecorder | null>(null);
+  const voiceRequestRef = useRef<string | null>(null);
+  const audioControllerRef = useRef<AbortController | null>(null);
+  const audioGenerationRef = useRef(0);
+  const voiceStreamRef = useRef<ReturnType<Client["createAgentAudioInputStream"]> | null>(null);
+  const playingRef = useRef(false);
   const tokenRef = useRef<string | null>(null);
   const preparingRef = useRef(false);
   const cancelledRef = useRef(false);
@@ -31,6 +39,8 @@ export function KlarenVideoCall({ open, onClose }: { open: boolean; onClose: () 
   const [status, setStatus] = useState<CallStatus>("preparing");
   const [error, setError] = useState("");
   const [muted, setMuted] = useState(false);
+  const [recording, setRecording] = useState(false);
+  const [transcribing, setTranscribing] = useState(false);
   const [cameraOn, setCameraOn] = useState(false);
   const [captionsOn, setCaptionsOn] = useState(true);
   const [reactionsOn, setReactionsOn] = useState(false);
@@ -49,6 +59,13 @@ export function KlarenVideoCall({ open, onClose }: { open: boolean; onClose: () 
   const closeStream = useCallback(() => {
     cancelledRef.current = true;
     tokenRef.current = null;
+    audioControllerRef.current?.abort();
+    audioGenerationRef.current += 1;
+    recordingRef.current?.stop();
+    recordingRef.current = null;
+    microphoneRef.current?.getTracks().forEach((track) => track.stop());
+    microphoneRef.current = null;
+    voiceStreamRef.current = null;
     clientRef.current?.stopStreaming();
     clientRef.current = null;
     if (avatarRef.current) avatarRef.current.srcObject = null;
@@ -96,7 +113,7 @@ export function KlarenVideoCall({ open, onClose }: { open: boolean; onClose: () 
     setError("");
     setStatus("connecting");
     try {
-      const client = createClient(token);
+      const client = createClient(token, { disableInputAudio: true });
       clientRef.current = client;
       client.addListener(AnamEvent.CONNECTION_ESTABLISHED, () => setStatus("connecting"));
       client.addListener(AnamEvent.SESSION_READY, () => setStatus("connected"));
@@ -122,6 +139,7 @@ export function KlarenVideoCall({ open, onClose }: { open: boolean; onClose: () 
         if (symbol) flashReaction(symbol);
       });
       await client.streamToVideoElement(videoId);
+      if (!cancelledRef.current) voiceStreamRef.current = client.createAgentAudioInputStream({ encoding: "pcm_s16le", sampleRate: 16000, channels: 1 });
       if (cancelledRef.current) client.stopStreaming();
     } catch (cause) {
       clientRef.current?.stopStreaming();
@@ -131,15 +149,117 @@ export function KlarenVideoCall({ open, onClose }: { open: boolean; onClose: () 
     }
   }
 
-  function toggleMute() {
-    const client = clientRef.current;
-    if (!client) return;
+  async function playSpeech(text: string) {
+    const stream = voiceStreamRef.current;
+    if (!stream || !text.trim()) return;
+    audioControllerRef.current?.abort();
+    const controller = new AbortController();
+    audioControllerRef.current = controller;
+    const generation = ++audioGenerationRef.current;
+    playingRef.current = true;
     try {
-      if (muted) client.unmuteInputAudio();
-      else client.muteInputAudio();
-      setMuted(!muted);
-    } catch { setError("Не удалось переключить микрофон."); }
+      const response = await fetch("/api/voice/avatar-audio", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text }), signal: controller.signal,
+      });
+      if (!response.ok || !response.body) throw new Error("Eleven V4 PCM stream unavailable");
+      const reader = response.body.getReader();
+      let carry = new Uint8Array(0);
+      try {
+        while (!controller.signal.aborted && !cancelledRef.current) {
+          const part = await reader.read();
+          if (part.done) break;
+          const merged = new Uint8Array(carry.length + part.value.length);
+          merged.set(carry);
+          merged.set(part.value, carry.length);
+          const bytes = Math.floor(merged.length / 2) * 2;
+          const frame = merged.subarray(0, bytes);
+          carry = merged.slice(bytes);
+          if (frame.length && generation === audioGenerationRef.current) {
+            let binary = "";
+            for (let offset = 0; offset < frame.length; offset += 8192) {
+              binary += String.fromCharCode(...frame.subarray(offset, offset + 8192));
+            }
+            stream.sendAudioChunk(btoa(binary));
+          }
+        }
+        if (generation === audioGenerationRef.current && !controller.signal.aborted) stream.endSequence();
+      } finally { reader.releaseLock(); }
+    } catch {
+      if (!controller.signal.aborted) setError("Нет V4 PCM-аудио. Проверь voice ID и доступ ElevenLabs.");
+    } finally {
+      if (generation === audioGenerationRef.current) playingRef.current = false;
+    }
   }
+
+  async function submitSpeech(blob: Blob) {
+    setTranscribing(true);
+    try {
+      const form = new FormData();
+      form.append("file", blob, blob.type.includes("ogg") ? "speech.ogg" : "speech.webm");
+      const response = await fetch("/api/voice/transcribe", { method: "POST", body: form });
+      if (!response.ok) throw new Error("STT unavailable");
+      const result = await response.json() as { text?: string };
+      const transcript = result.text?.trim();
+      if (!transcript || cancelledRef.current) return;
+      setLastSpeaker("ВЫ");
+      setLastCaption(transcript);
+      // Speak only the next assistant response produced by this voice request.
+      voiceRequestRef.current = [...messages].reverse().find((message) => message.role === "assistant")?.id ?? "first";
+      onSend(transcript, []);
+    } catch {
+      if (!cancelledRef.current) setError("Не удалось распознать речь через xAI.");
+    } finally { setTranscribing(false); }
+  }
+
+  async function toggleMute() {
+    if (recordingRef.current) {
+      recordingRef.current.stop();
+      recordingRef.current = null;
+      setRecording(false);
+      setMuted(true);
+      return;
+    }
+    if (status !== "connected" || isTyping || transcribing) return;
+    try {
+      audioControllerRef.current?.abort();
+      clientRef.current?.interruptPersona();
+      const media = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+      if (cancelledRef.current) { media.getTracks().forEach((track) => track.stop()); return; }
+      microphoneRef.current = media;
+      const mime = ["audio/webm;codecs=opus", "audio/webm", "audio/ogg;codecs=opus"].find((item) => MediaRecorder.isTypeSupported(item));
+      if (!mime) throw new Error("Unsupported audio format");
+      const recorder = new MediaRecorder(media, { mimeType: mime });
+      const chunks: Blob[] = [];
+      recorder.ondataavailable = (event) => { if (event.data.size) chunks.push(event.data); };
+      recorder.onstop = () => {
+        media.getTracks().forEach((track) => track.stop());
+        microphoneRef.current = null;
+        if (!cancelledRef.current && chunks.length) void submitSpeech(new Blob(chunks, { type: mime.split(";")[0] }));
+      };
+      recordingRef.current = recorder;
+      recorder.start();
+      setRecording(true);
+      setMuted(false);
+      setError("");
+    } catch {
+      microphoneRef.current?.getTracks().forEach((track) => track.stop());
+      microphoneRef.current = null;
+      setError("Доступ к микрофону не получен.");
+    }
+  }
+
+  useEffect(() => {
+    if (!open || !voiceRequestRef.current || isTyping) return;
+    const reply = [...messages].reverse().find((item) => item.role === "assistant" && item.id !== voiceRequestRef.current);
+    if (!reply?.content.trim()) return;
+    voiceRequestRef.current = null;
+    setLastSpeaker("КЛАРЕН");
+    setLastCaption(reply.content);
+    void playSpeech(reply.content);
+    // Current request is resolved by the completed assistant message.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, messages, isTyping]);
 
   async function toggleCamera() {
     if (cameraRef.current) { stopCamera(); return; }
@@ -174,7 +294,7 @@ export function KlarenVideoCall({ open, onClose }: { open: boolean; onClose: () 
           </div>
         </div>
         <div className="flex items-center gap-3 text-xs text-[#a5a09a]">
-          <span className="hidden sm:inline">{status === "connected" ? "Соединение установлено" : status === "connecting" ? "Подключаем…" : status === "preparing" ? "Подготавливаем…" : status === "ready" ? "Готова к звонку" : "Нет соединения"}</span>
+          <span className="hidden sm:inline">{status === "connected" ? (recording ? "Слушаю…" : transcribing ? "Распознаю…" : "Соединение установлено") : status === "connecting" ? "Подключаем…" : status === "preparing" ? "Подготавливаем…" : status === "ready" ? "Готова к звонку" : "Нет соединения"}</span>
           <Button variant="ghost" size="icon" className="text-[#b4b4b4] hover:bg-[#262626]" aria-label="Закрыть видеозвонок" onClick={hangUp}><X size={20}/></Button>
         </div>
       </header>
@@ -216,8 +336,8 @@ export function KlarenVideoCall({ open, onClose }: { open: boolean; onClose: () 
           <span className="ml-3">NULLXES · Orbital AI</span>
         </div>
         <div className="flex flex-wrap items-center justify-center gap-2 sm:gap-3">
-          <Button variant="outline" size="icon-lg" className="size-11 rounded-full border-[#363636] bg-[#181818] text-white hover:bg-[#272727]" disabled={status !== "connected"} onClick={toggleMute} aria-label={muted ? "Включить микрофон" : "Отключить микрофон"}>
-            {muted ? <MicrophoneSlash size={20}/> : <Microphone size={20}/>}
+          <Button variant="outline" size="icon-lg" className="size-11 rounded-full border-[#363636] bg-[#181818] text-white hover:bg-[#272727]" disabled={status !== "connected"} onClick={() => void toggleMute()} aria-label={recording ? "Завершить запись речи" : "Начать запись речи"}>
+            {recording ? <MicrophoneSlash size={20}/> : <Microphone size={20}/>}
           </Button>
           <Button variant="outline" size="icon-lg" className="size-11 rounded-full border-[#363636] bg-[#181818] text-white hover:bg-[#272727]" onClick={() => void toggleCamera()} aria-label={cameraOn ? "Выключить камеру" : "Включить локальную камеру"}>
             {cameraOn ? <Camera size={20}/> : <CameraSlash size={20}/>}
@@ -225,7 +345,7 @@ export function KlarenVideoCall({ open, onClose }: { open: boolean; onClose: () 
           <Button variant="outline" size="icon-lg" className="size-11 rounded-full border-[#363636] bg-[#181818] text-white hover:bg-[#272727]" onClick={() => setCaptionsOn(!captionsOn)} aria-pressed={captionsOn} aria-label="Субтитры">
             <ChatCircleText size={20}/>
           </Button>
-          <Button variant="outline" size="icon-lg" className="size-11 rounded-full border-[#363636] bg-[#181818] text-white hover:bg-[#272727]" disabled={status !== "connected"} onClick={() => clientRef.current?.interruptPersona()} aria-label="Прервать речь Кларен">
+          <Button variant="outline" size="icon-lg" className="size-11 rounded-full border-[#363636] bg-[#181818] text-white hover:bg-[#272727]" disabled={status !== "connected"} onClick={() => { audioControllerRef.current?.abort(); audioGenerationRef.current += 1; clientRef.current?.interruptPersona(); }} aria-label="Прервать речь Кларен">
             <HandPalm size={20}/>
           </Button>
           <div className="relative">
