@@ -22,6 +22,26 @@ const seen = new Map<number, number>();
 const contexts = new Map<string, { role: "user" | "assistant"; content: string }[]>();
 const VOICE_BYTES = 10_000_000;
 
+type TestStage = "business_verify" | "voice_stt" | "grok_generation" | "elevenlabs_tts" | "telegram_send";
+class TestStageError extends Error {
+  constructor(readonly stage: TestStage, readonly status: number | undefined, readonly reason: string) {
+    super(`${stage}: ${reason}`);
+    this.name = "TestStageError";
+  }
+}
+async function stageCall<T>(stage: TestStage, fn: () => Promise<T>): Promise<T> {
+  try { return await fn(); }
+  catch (error) {
+    const status = error && typeof error === "object" && "status" in error && typeof error.status === "number" ? error.status : undefined;
+    const raw = error instanceof Error ? error.message : "unknown_error";
+    // Only code-generated error signatures; never print request bodies, private messages or API URLs with tokens.
+    const reason = /^(Telegram |Voice |Invalid voice|xAI STT HTTP |ElevenLabs V4 HTTP |Missing |Empty Grok|Telegram sendVoice failed)/.test(raw)
+      ? raw.slice(0, 100)
+      : (error instanceof Error ? error.name : "unknown_error");
+    throw new TestStageError(stage, status, reason);
+  }
+}
+
 function settings() {
   return {
     ownerUsername: (process.env.TELEGRAM_TEST_OWNER_USERNAME ?? "MagistrTheOne").replace(/^@/, "").toLowerCase(),
@@ -119,8 +139,8 @@ async function voiceReply(text: string, message: TMessage) {
 
 async function handleMessage(message: TMessage) {
   if (!message.from || !message.business_connection_id) return;
-  if (!await verifyBusiness(message)) return;
-  const utterance = message.voice ? await recognize(message.voice) : message.text?.trim().slice(0, 4000);
+  if (!await stageCall("business_verify", () => verifyBusiness(message))) return;
+  const utterance = message.voice ? await stageCall("voice_stt", () => recognize(message.voice!)) : message.text?.trim().slice(0, 4000);
   if (!utterance) return;
   const key = `${message.business_connection_id}:${message.chat.id}`;
   const history = contexts.get(key) ?? [];
@@ -144,12 +164,12 @@ async function handleMessage(message: TMessage) {
   const abort = new AbortController();
   const timeout = setTimeout(() => abort.abort(), 45_000);
   try {
-    await new XAIChatAdapter().stream({
+    await stageCall("grok_generation", () => new XAIChatAdapter().stream({
       instructions,
       messages: [...history.slice(-16), { role: "user", content: utterance }],
       signal: abort.signal,
       onDelta: (piece) => { answer += piece; if (answer.length > 6000) abort.abort(); },
-    });
+    }));
   } finally { clearTimeout(timeout); }
   answer = answer.trim().slice(0, 3900);
   if (!answer) throw new Error("Empty Grok reply");
@@ -159,10 +179,10 @@ async function handleMessage(message: TMessage) {
     business_connection_id: message.business_connection_id,
     action: voice ? "upload_voice" : "typing",
   }).catch(() => undefined);
-  if (voice) await voiceReply(answer, message);
-  else await telegram("sendMessage", {
+  if (voice) await stageCall("elevenlabs_tts", () => voiceReply(answer, message));
+  else await stageCall("telegram_send", () => telegram("sendMessage", {
     chat_id: message.chat.id, business_connection_id: message.business_connection_id, text: answer,
-  });
+  }));
   contexts.set(key, [...history, { role: "user" as const, content: utterance }, { role: "assistant" as const, content: answer }].slice(-16));
   if (contexts.size > 100) contexts.clear();
 }
@@ -189,7 +209,9 @@ export function handleBusinessTestUpdate(update: TestUpdate): Response {
     try { await handleMessage(message); }
     catch (error) {
       // No provider credentials, message text or private payloads in logs.
-      console.error("Telegram test response failed", { kind: error instanceof Error ? error.name : "unknown" });
+      console.error("Telegram test response failed", error instanceof TestStageError
+        ? { stage: error.stage, status: error.status ?? null, reason: error.reason }
+        : { stage: "unexpected", kind: error instanceof Error ? error.name : "unknown" });
       seen.delete(update.update_id);
     }
   });
