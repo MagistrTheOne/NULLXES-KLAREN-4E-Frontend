@@ -1,11 +1,12 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { SpeakerHigh, StopCircle, Waveform } from "@phosphor-icons/react";
+import { Microphone, StopCircle } from "@phosphor-icons/react";
 import type { ChatMessage, LocalAttachment } from "@/types/workspace";
 import { playMp3Stream } from "@/lib/voice/client/play-mp3-stream";
 
 type Stage = "idle" | "recording" | "transcribing" | "replying" | "speaking";
+type Turn = { before: number; seenUser: boolean; seenReply: boolean };
 
 export function VoiceModeControl({
   messages, isTyping, onSend,
@@ -14,139 +15,168 @@ export function VoiceModeControl({
   isTyping: boolean;
   onSend: (text: string, attachments: LocalAttachment[]) => void;
 }) {
-  const [enabled, setEnabled] = useState(false);
   const [stage, setStage] = useState<Stage>("idle");
-  const [notice, setNotice] = useState("");
-  const [waiting, setWaiting] = useState(false);
+  const [error, setError] = useState("");
   const recorder = useRef<MediaRecorder | null>(null);
-  const microphone = useRef<MediaStream | null>(null);
-  const chunks = useRef<Blob[]>([]);
-  const discardRecording = useRef(false);
-  const sessionActive = useRef(false);
-  const audio = useRef<HTMLAudioElement | null>(null);
+  const media = useRef<MediaStream | null>(null);
+  const blobs = useRef<Blob[]>([]);
+  const cancelled = useRef(false);
+  const abort = useRef<AbortController | null>(null);
+  const player = useRef<HTMLAudioElement | null>(null);
   const audioUrl = useRef<string | null>(null);
-  const controller = useRef<AbortController | null>(null);
-  const lastBeforeRequest = useRef<string | undefined>(undefined);
-  const lastMessage = messages.at(-1);
-  const isSupported = typeof window !== "undefined" && typeof MediaRecorder !== "undefined" &&
-    Boolean(navigator.mediaDevices?.getUserMedia);
+  const turn = useRef<Turn | null>(null);
+  const active = useRef(true);
 
-  function stopPlayback() {
-    controller.current?.abort();
-    controller.current = null;
-    audio.current?.pause();
-    audio.current = null;
+  function releaseMicrophone() {
+    media.current?.getTracks().forEach((track) => track.stop());
+    media.current = null;
+    recorder.current = null;
+  }
+
+  function stopSound() {
+    abort.current?.abort();
+    abort.current = null;
+    player.current?.pause();
+    player.current = null;
     if (audioUrl.current) URL.revokeObjectURL(audioUrl.current);
     audioUrl.current = null;
   }
 
-  function cleanupMicrophone() {
-    recorder.current = null;
-    microphone.current?.getTracks().forEach((track) => track.stop());
-    microphone.current = null;
-  }
-
   useEffect(() => {
+    active.current = true;
     return () => {
-      controller.current?.abort();
-      audio.current?.pause();
-      microphone.current?.getTracks().forEach((track) => track.stop());
-      discardRecording.current = true;
-      sessionActive.current = false;
-      recorder.current?.stop();
+      active.current = false;
+      cancelled.current = true;
+      if (recorder.current?.state === "recording") recorder.current.stop();
+      media.current?.getTracks().forEach((track) => track.stop());
+      abort.current?.abort();
+      player.current?.pause();
       if (audioUrl.current) URL.revokeObjectURL(audioUrl.current);
     };
   }, []);
 
-  async function speak(text: string) {
+  async function playVoice(text: string) {
     setStage("speaking");
-    const abort = new AbortController();
-    controller.current = abort;
+    const controller = new AbortController();
+    abort.current = controller;
     try {
       const response = await fetch("/api/voice/live", {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text }), signal: abort.signal,
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text }),
+        signal: controller.signal,
       });
-      if (!response.ok) throw new Error("V4 TTS unavailable");
-      await playMp3Stream(response, abort.signal, (player, url) => {
+      if (!response.ok) throw new Error("TTS unavailable");
+      await playMp3Stream(response, controller.signal, (audio, url) => {
+        player.current = audio;
         audioUrl.current = url;
-        audio.current = player;
-        player.onended = () => {
-          if (audioUrl.current === url) {
-            stopPlayback();
-            setStage("idle");
-          }
+        audio.onended = () => {
+          stopSound();
+          if (active.current) setStage("idle");
         };
       });
     } catch {
-      if (!abort.signal.aborted) {
-        setNotice("Не удалось воспроизвести Eleven V4. Текст ответа сохранён.");
+      if (!controller.signal.aborted && active.current) {
+        setError("Текст получен, но голос Eleven V4 недоступен.");
         setStage("idle");
       }
     }
   }
 
   useEffect(() => {
-    if (!waiting || isTyping || !lastMessage || lastMessage.role !== "assistant" || !lastMessage.content.trim()) return;
-    if (lastMessage.id === lastBeforeRequest.current) return;
-    setWaiting(false);
-    void speak(lastMessage.content);
-    // Only trigger at the completion of the voice-requested assistant reply.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [waiting, isTyping, lastMessage?.id, lastMessage?.content]);
-
-  async function transmit(blob: Blob) {
-    setStage("transcribing");
-    const body = new FormData();
-    const extension = blob.type.includes("ogg") ? "ogg" : "webm";
-    body.append("file", blob, `klaren-recording.${extension}`);
-    try {
-      const response = await fetch("/api/voice/transcribe", { method: "POST", body });
-      if (!response.ok) throw new Error("STT failed");
-      const { text } = await response.json() as { text?: string };
-      if (!text?.trim()) throw new Error("Empty transcript");
-      if (!sessionActive.current) { setStage("idle"); return; }
-      lastBeforeRequest.current = [...messages].reverse().find((item) => item.role === "assistant")?.id;
-      setWaiting(true);
-      setStage("replying");
-      onSend(text.trim(), []);
-    } catch {
-      setNotice("Речь не распознана. Повтори запись.");
+    const pending = turn.current;
+    if (!pending) return;
+    const newer = messages.slice(pending.before);
+    if (newer.some((message) => message.role === "user")) pending.seenUser = true;
+    if (isTyping) pending.seenReply = true;
+    if (!pending.seenUser || !pending.seenReply || isTyping) return;
+    const answer = [...newer].reverse().find((message) => message.role === "assistant" && message.content.trim());
+    turn.current = null;
+    if (answer) {
+      void playVoice(answer.content);
+    } else {
+      setError("Кларен не ответила. Проверь подключение.");
       setStage("idle");
+    }
+    // On completion, only the reply to this voice turn can trigger speech.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [messages, isTyping]);
+
+  async function transcribe(recorded: Blob) {
+    setStage("transcribing");
+    const controller = new AbortController();
+    abort.current = controller;
+    try {
+      const form = new FormData();
+      const extension = recorded.type.includes("ogg") ? "ogg" : "webm";
+      form.append("file", recorded, `klaren-mic.${extension}`);
+      const response = await fetch("/api/voice/transcribe", {
+        method: "POST", body: form, signal: controller.signal,
+      });
+      if (!response.ok) {
+        const payload = await response.json().catch(() => ({})) as { error?: string };
+        throw new Error(payload.error || "Распознавание недоступно.");
+      }
+      const data = await response.json() as { text?: string };
+      const transcript = data.text?.trim();
+      if (!transcript || !active.current || cancelled.current) throw new Error("Речь не распознана.");
+      turn.current = { before: messages.length, seenUser: false, seenReply: false };
+      setStage("replying");
+      onSend(transcript, []);
+    } catch (cause) {
+      if (!controller.signal.aborted && active.current) {
+        setError(cause instanceof Error ? cause.message : "Ошибка распознавания речи.");
+        setStage("idle");
+      }
     }
   }
 
-  async function beginRecording() {
-    setNotice("");
-    stopPlayback();
-    if (!isSupported) { setNotice("Браузер не поддерживает запись микрофона."); return; }
+  async function begin() {
+    if (typeof MediaRecorder === "undefined" || !navigator.mediaDevices?.getUserMedia) {
+      setError("Браузер не поддерживает запись. Разреши микрофон.");
+      return;
+    }
+    cancelled.current = false;
+    setError("");
     try {
-      const status = await fetch("/api/voice/status", { cache: "no-store" });
-      if (!status.ok) { setNotice("KLARENCIA MARIA пока недоступна через ElevenLabs API."); return; }
-      if (!sessionActive.current) return;
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true }, video: false });
-      if (!sessionActive.current) { stream.getTracks().forEach((track) => track.stop()); return; }
-      microphone.current = stream;
-      const mime = ["audio/webm;codecs=opus", "audio/webm", "audio/ogg;codecs=opus"].find((v) => MediaRecorder.isTypeSupported(v));
-      if (!mime) { cleanupMicrophone(); setNotice("Нет поддерживаемого аудиоформата."); return; }
-      chunks.current = [];
-      discardRecording.current = false;
-      const active = new MediaRecorder(stream, { mimeType: mime });
-      recorder.current = active;
-      active.ondataavailable = (event) => { if (event.data.size) chunks.current.push(event.data); };
-      active.onstop = () => {
-        const blob = new Blob(chunks.current, { type: mime.split(";")[0] });
-        cleanupMicrophone();
-        if (discardRecording.current) { setStage("idle"); return; }
-        if (blob.size) void transmit(blob);
-        else setStage("idle");
+      const input = await navigator.mediaDevices.getUserMedia({
+        audio: { echoCancellation: true, noiseSuppression: true },
+        video: false,
+      });
+      if (cancelled.current || !active.current) {
+        input.getTracks().forEach((track) => track.stop());
+        return;
+      }
+      const mime = ["audio/webm;codecs=opus", "audio/webm", "audio/ogg;codecs=opus"]
+        .find((format) => MediaRecorder.isTypeSupported(format));
+      if (!mime) {
+        input.getTracks().forEach((track) => track.stop());
+        setError("Формат микрофона не поддерживается.");
+        return;
+      }
+      media.current = input;
+      blobs.current = [];
+      const current = new MediaRecorder(input, { mimeType: mime });
+      recorder.current = current;
+      current.ondataavailable = (event) => {
+        if (event.data.size) blobs.current.push(event.data);
       };
-      active.start();
+      current.onstop = () => {
+        const audio = new Blob(blobs.current, { type: mime.split(";")[0] });
+        releaseMicrophone();
+        if (cancelled.current || !active.current) return;
+        if (audio.size) void transcribe(audio);
+        else {
+          setError("Микрофон не записал звук.");
+          setStage("idle");
+        }
+      };
+      current.start();
       setStage("recording");
     } catch {
-      cleanupMicrophone();
+      releaseMicrophone();
+      setError("Не удалось открыть микрофон. Проверь разрешение браузера.");
       setStage("idle");
-      setNotice("Не удалось открыть микрофон. Проверь разрешение браузера.");
     }
   }
 
@@ -156,35 +186,31 @@ export function VoiceModeControl({
       return;
     }
     if (stage === "speaking") {
-      stopPlayback();
+      stopSound();
       setStage("idle");
       return;
     }
-    if (stage !== "idle" || isTyping) return;
-    void beginRecording();
+    if (stage === "transcribing" || stage === "replying" || isTyping) return;
+    void begin();
   }
 
   return (
-    <div className="flex items-center gap-1.5">
-      <button type="button" onClick={() => {
-        sessionActive.current = !enabled;
-        if (enabled) {
-          discardRecording.current = true;
-          recorder.current?.stop();
-          stopPlayback();
-          setWaiting(false);
-          setStage("idle");
-        }
-        setEnabled(!enabled);
-        setNotice("");
-      }} aria-pressed={enabled} title="Голос KLARENCIA MARIA — Eleven V4" className={`flex size-9 items-center justify-center rounded-full transition-colors ${enabled ? "bg-[#392d1b] text-[#dfbd7e]" : "text-[#989898] hover:bg-[#242424]"}`}>
-        <SpeakerHigh size={19} />
+    <div className="flex shrink-0 items-center gap-1">
+      <button
+        type="button"
+        disabled={stage === "transcribing" || stage === "replying" || isTyping}
+        onClick={toggle}
+        aria-label={stage === "recording" ? "Завершить запись и отправить Кларен" : stage === "speaking" ? "Остановить голос Кларен" : "Голосовой разговор с Кларен"}
+        aria-pressed={stage !== "idle"}
+        title={stage === "recording" ? "Завершить запись" : stage === "speaking" ? "Остановить озвучку" : "Микрофон · xAI STT → Grok → Eleven V4"}
+        className={`mb-0.5 flex size-9 shrink-0 items-center justify-center rounded-full transition-colors disabled:opacity-40 ${stage === "idle" ? "text-[#a6a6a6] hover:bg-[#242424] hover:text-[#e1c78f]" : "border border-[#75603b] bg-[#2b2217] text-[#e9b56d]"}`}
+      >
+        {stage === "recording" || stage === "speaking" ? <StopCircle size={19}/> : <Microphone size={19}/>}
       </button>
-      {enabled && <button type="button" onClick={toggle} disabled={stage === "transcribing" || stage === "replying"} title={stage === "recording" ? "Закончить запись" : stage === "speaking" ? "Остановить звук" : "Сказать Кларен"} aria-label={stage === "recording" ? "Остановить запись" : "Начать голосовой запрос"} className="flex size-9 items-center justify-center rounded-full border border-[#75603b] text-[#d6b47b] disabled:opacity-50">
-        {stage === "recording" || stage === "speaking" ? <StopCircle size={19} /> : <Waveform size={19} />}
-      </button>}
-      {enabled && stage !== "idle" && <span role="status" className="hidden text-[10px] text-[#b8a17a] xl:inline">{stage === "recording" ? "Запись…" : stage === "transcribing" ? "Распознавание…" : stage === "replying" ? "Ответ…" : "Говорит…"}</span>}
-      {enabled && notice && <span role="alert" className="max-w-40 text-[10px] text-[#df9b9b]">{notice}</span>}
+      {stage !== "idle" && <span role="status" className="hidden text-[10px] text-[#c6a46a] xl:inline">
+        {stage === "recording" ? "Запись…" : stage === "transcribing" ? "Распознавание…" : stage === "replying" ? "Кларен отвечает…" : "Кларен говорит…"}
+      </span>}
+      {error && <span role="alert" className="max-w-48 text-[10px] text-[#df9999]">{error}</span>}
     </div>
   );
 }
