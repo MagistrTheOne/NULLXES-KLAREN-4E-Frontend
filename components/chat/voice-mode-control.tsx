@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { SpeakerHigh, StopCircle, Waveform } from "@phosphor-icons/react";
 import type { ChatMessage, LocalAttachment } from "@/types/workspace";
+import { playMp3Stream } from "@/lib/voice/client/play-mp3-stream";
 
 type Stage = "idle" | "recording" | "transcribing" | "replying" | "speaking";
 
@@ -63,21 +64,16 @@ export function VoiceModeControl({
         body: JSON.stringify({ text }), signal: abort.signal,
       });
       if (!response.ok) throw new Error("V4 TTS unavailable");
-      const blob = await response.blob();
-      if (abort.signal.aborted) return;
-      const url = URL.createObjectURL(blob);
-      audioUrl.current = url;
-      const player = new Audio(url);
-      audio.current = player;
-      player.onended = () => {
-        if (audioUrl.current === url) {
-          URL.revokeObjectURL(url);
-          audioUrl.current = null;
-          audio.current = null;
-          setStage("idle");
-        }
-      };
-      await player.play();
+      await playMp3Stream(response, abort.signal, (player, url) => {
+        audioUrl.current = url;
+        audio.current = player;
+        player.onended = () => {
+          if (audioUrl.current === url) {
+            stopPlayback();
+            setStage("idle");
+          }
+        };
+      });
     } catch {
       if (!abort.signal.aborted) {
         setNotice("Не удалось воспроизвести Eleven V4. Текст ответа сохранён.");
