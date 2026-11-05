@@ -737,7 +737,6 @@ export function AppShell({ account }: AppShellProps) {
             renderMarkdown={data.preferences.renderMarkdown}
             onNewChat={newChat}
             onRename={(conversation) => openNameDialog("conversation", conversation.id)}
-            onTogglePortrait={() => updatePreference("portraitVisible", !data.preferences.portraitVisible)}
             onSend={sendMessage}
             onCancel={cancelReply}
             onRegenerate={regenerateReply}
