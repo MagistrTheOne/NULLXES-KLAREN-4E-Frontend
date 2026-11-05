@@ -5,10 +5,10 @@ export function LandingAbout() {
       <div className="landing-company-main">
         <h2>Built to think.<br /><span>Built to exist.</span></h2>
         <div className="landing-about-copy">
-          <p>NULLXES is an independent engineering company developing intelligent systems for the physical world.</p>
-          <p>At its center is KLAREN 4E — a proprietary intelligence project with a distinct identity and ambitions beyond conventional interfaces.</p>
-          <p>Our research spans language, multimodal perception, autonomous systems, and Physical AI. Each is part of a longer engineering journey.</p>
-          <strong>KLAREN is the intelligence. The world is where we want to take her.</strong>
+          <p>NULLXES is an independent company building a future where intelligence moves beyond conventional software.</p>
+          <p>KLAREN 4E is our signature intelligence project: a personality with a perspective, not another faceless assistant.</p>
+          <p>Our ambition reaches from everyday conversation to new environments and forms of interaction.</p>
+          <strong>The ambition is simple: one intelligence, different bodies.</strong>
         </div>
       </div>
       <div className="landing-manifesto">
