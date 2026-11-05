@@ -120,7 +120,7 @@ async function voiceReply(text: string, message: TMessage) {
   const key = process.env.ELEVENLABS_API_KEY;
   if (!key) throw new Error("Missing ElevenLabs key");
   const voiceId = await resolveKlarenciaVoice();
-  const result = await fetch("https://api.elevenlabs.io/v1/text-to-dialogue/stream?output_format=mp3_44100_128", {
+  const result = await fetch("https://api.elevenlabs.io/v1/text-to-dialogue/stream?output_format=opus_48000_64", {
     method: "POST",
     headers: { "xi-api-key": key, "Content-Type": "application/json" },
     body: JSON.stringify({
@@ -131,18 +131,24 @@ async function voiceReply(text: string, message: TMessage) {
     signal: AbortSignal.timeout(65_000),
   });
   if (!result.ok) throw new Error(`ElevenLabs V4 HTTP ${result.status}`);
-  const mp3 = await result.arrayBuffer();
-  if (!mp3.byteLength || mp3.byteLength > 20_000_000) throw new Error("Invalid V4 output");
+  const ogg = await result.arrayBuffer();
+  if (ogg.byteLength < 64 || ogg.byteLength > 20_000_000) throw new Error("Invalid V4 OGG output size");
+  const header = Buffer.from(ogg);
+  if (header.toString("ascii", 0, 4) !== "OggS" ||
+      !header.subarray(0, 8192).includes(Buffer.from("OpusHead"))) {
+    throw new Error("ElevenLabs output is not OGG/Opus");
+  }
   const form = new FormData();
   form.append("chat_id", String(message.chat.id));
   form.append("business_connection_id", message.business_connection_id!);
-  form.append("voice", new Blob([mp3], { type: "audio/mpeg" }), "klarencia-v4.mp3");
+  form.append("voice", new Blob([ogg], { type: "audio/ogg" }), "klarencia-v4.ogg");
   const token = process.env.TELEGRAM_BOT_TOKEN;
   const upload = await fetch(`https://api.telegram.org/bot${token}/sendVoice`, {
     method: "POST", body: form, signal: AbortSignal.timeout(30_000),
   });
-  const response = await upload.json() as { ok?: boolean };
+  const response = await upload.json() as { ok?: boolean; result?: { voice?: { duration?: number }; document?: unknown } };
   if (!upload.ok || !response.ok) throw new Error("Telegram sendVoice failed");
+  if (!response.result?.voice) throw new Error("Telegram returned a non-voice attachment");
 }
 
 async function handleMessage(message: TMessage) {
