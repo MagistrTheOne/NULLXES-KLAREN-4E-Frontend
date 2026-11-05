@@ -27,6 +27,7 @@ interface SettingsWorkspaceProps {
     value: Preferences[K],
   ) => void;
   onClearHistory: () => void;
+  onExportAll: () => void;
 }
 
 export function SettingsWorkspace({
@@ -35,6 +36,7 @@ export function SettingsWorkspace({
   accountEmail,
   onPreferenceChange,
   onClearHistory,
+  onExportAll,
 }: SettingsWorkspaceProps) {
   const [newMemory, setNewMemory] = useState("");
   const memories = preferences.pinnedMemories ?? [];
@@ -228,6 +230,16 @@ export function SettingsWorkspace({
             onCheckedChange={(checked) => onPreferenceChange("enterToSend", checked)}
             last
           />
+        </section>
+
+        <section className="mt-5 rounded-xl border border-[#292929] bg-[#101010] p-5">
+          <div className="flex flex-wrap items-center justify-between gap-4">
+            <div>
+              <h2 className="text-sm font-medium text-[#e5e5e5]">Экспорт данных аккаунта</h2>
+              <p className="mt-1 text-xs leading-5 text-[#898989]">Скачать свои диалоги, проекты, вложения и настройки одним JSON-файлом.</p>
+            </div>
+            <Button type="button" variant="outline" onClick={onExportAll}>Скачать JSON</Button>
+          </div>
         </section>
 
         <section className="mt-5 rounded-xl border border-[#292929] bg-[#101010]">
