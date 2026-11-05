@@ -463,7 +463,7 @@ export function AppShell({ account }: AppShellProps) {
     }));
     void requestReply(
       activeConversation.id,
-      lastUserMessage.content || activeConversation.messages.at(-2)?.attachments.map((item) => `Вложение: ${item.name}`).join("\n") || "",
+      (lastUserMessage.content + "\n\n" + lastUserMessage.attachments.filter((attachment) => attachment.contentText).map((attachment) => `[Файл: ${attachment.name}]\n${attachment.contentText}\n[/Файл]`).join("\n")).slice(0, MAX_CHAT_MESSAGE_LENGTH).trim(),
       history,
     );
   }
