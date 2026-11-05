@@ -1,5 +1,6 @@
 import {
   foreignKey,
+  index,
   integer,
   jsonb,
   pgTable,
@@ -88,7 +89,7 @@ export const telegramMessages = pgTable("klaren_telegram_messages", {
   role: text("role").$type<ChatMessage["role"]>().notNull(),
   content: text("content").notNull(),
   createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).notNull().defaultNow(),
-});
+}, (table) => [index("klaren_telegram_messages_user_chat_idx").on(table.userId, table.chatId, table.createdAt)]);
 
 export const telegramUpdates = pgTable("klaren_telegram_updates", {
   updateId: text("update_id").primaryKey(),

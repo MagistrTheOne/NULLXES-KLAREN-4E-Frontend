@@ -15,6 +15,13 @@
       "when": 1793846402454,
       "tag": "0001_sloppy_shinko_yamashiro",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1793912400000,
+      "tag": "0002_klaren_telegram_bridge",
+      "breakpoints": true
     }
   ]
 }
