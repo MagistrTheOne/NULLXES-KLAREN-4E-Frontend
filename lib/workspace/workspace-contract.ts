@@ -8,6 +8,7 @@ const preferencesSchema = z.object({
   enterToSend: z.boolean(),
   userName: z.string().max(60),
   userContext: z.string().max(500),
+  pinnedMemories: z.array(z.object({ id: z.string().min(1).max(100), text: z.string().min(1).max(240) })).max(10).default([]),
   sharpness: z.enum(["balanced", "wry", "sharp"]),
   roleplayEnabled: z.boolean(),
   adultThemesEnabled: z.boolean(),
