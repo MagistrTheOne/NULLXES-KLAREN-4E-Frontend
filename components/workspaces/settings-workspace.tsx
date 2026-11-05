@@ -12,6 +12,7 @@ import {
   UserCircle,
 } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/button";
+import { TelegramIntegration } from "@/components/workspaces/telegram-integration";
 import { Input } from "@/components/ui/input";
 import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select";
 import { Switch } from "@/components/ui/switch";
@@ -94,6 +95,8 @@ export function SettingsWorkspace({
             </label>
           </div>
         </section>
+
+        <TelegramIntegration />
 
         <section className="mt-5 overflow-hidden rounded-xl border border-[#292929] bg-[#101010]">
           <div className="border-b border-[#242424] px-5 py-4">
