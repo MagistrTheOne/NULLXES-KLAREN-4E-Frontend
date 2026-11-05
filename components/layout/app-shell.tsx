@@ -325,6 +325,7 @@ export function AppShell({ account }: AppShellProps) {
         personalization: {
           userName: data.preferences.userName,
           userContext: data.preferences.userContext,
+          pinnedMemories: data.preferences.pinnedMemories.map((memory) => memory.text),
           sharpness: data.preferences.sharpness,
           roleplayEnabled: data.preferences.roleplayEnabled,
           adultThemesEnabled: data.preferences.adultThemesEnabled,
