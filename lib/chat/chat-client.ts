@@ -14,6 +14,7 @@ export async function streamChatResponse(
     personalization: ChatPersonalization;
     images?: string[];
     files?: { id: string; proof: string }[];
+    mode?: "chat" | "video";
   },
 ): Promise<void> {
   const response = await fetch("/api/chat", {
