@@ -91,7 +91,7 @@
 .landing-nav { display: flex; align-items: center; justify-content: center; gap: clamp(14px, 2.1vw, 38px); }
 .landing-nav a { color: #c6c2bc; font-size: 12px; transition: color .18s ease; white-space: nowrap; }
 .landing-nav a:hover,.landing-footer a:hover,.landing-contact-links a:hover { color: var(--landing-orange); }
-.landing-hero-line { margin: 27px 0 0; color: #f5f5f5; font-size: clamp(20px,2.2vw,32px); line-height: 1.35; letter-spacing: -.035em; }
+.landing-hero-line { max-width: 390px; margin: 27px 0 0; color: #f5f5f5; font-size: clamp(20px,2.2vw,32px); line-height: 1.35; letter-spacing: -.035em; text-wrap: balance; }
 .landing-hero-line span { color: #e58a32; }
 .landing-product-copy { max-width: 540px; }
 .landing-product-copy p,.landing-about-copy p { margin: 0 0 15px; color: #aaa49b; font-size: 15px; line-height: 1.8; }
@@ -127,15 +127,15 @@
 .landing-button-primary { border-color: var(--landing-orange); background: var(--landing-orange); color: #0b0907; }
 .landing-button-primary:hover { background: #f0a24f; }
 .landing-button-large { min-height: 52px; padding-inline: 25px; font-size: 14px; }
-.landing-hero { position: relative; display: flex; min-height: min(850px, max(700px, 100svh)); align-items: center; padding: 110px clamp(24px, 6vw, 110px) 92px; isolation: isolate; }
-.landing-character { z-index: -2; object-fit: cover; object-position: 64% 42%; }
+.landing-hero { position: relative; display: flex; min-height: min(850px, max(700px, 100svh)); align-items: center; padding: 110px clamp(24px, 6vw, 110px) 92px; isolation: isolate; overflow: hidden; }
+.landing-character { z-index: -2; object-fit: cover; object-position: 70% 42%; }
 .landing-hero-shade { position: absolute; z-index: -1; inset: 0; background: linear-gradient(90deg,#080808 0%,rgb(8 8 8 / 95%) 22%,rgb(8 8 8 / 64%) 43%,rgb(8 8 8 / 8%) 78%),linear-gradient(0deg,#080808 0%,transparent 23%,transparent 83%,rgb(8 8 8 / 28%) 100%); }
-.landing-hero-copy { width: min(620px, 54%); padding-top: 16px; }
+.landing-hero-copy { position: relative; z-index: 2; display: flex; flex-direction: column; align-items: flex-start; width: min(540px, 48%); min-width: 0; padding-top: 16px; }
 .landing-eyebrow { margin: 0; color: var(--landing-orange); font-size: 10px; font-weight: 600; letter-spacing: .32em; }
-.landing-hero h1 { margin: 26px 0 0; font-size: clamp(64px, 9.3vw, 150px); font-weight: 650; letter-spacing: -.075em; line-height: .88; white-space: nowrap; }
+.landing-hero h1 { max-width: 100%; margin: 26px 0 0; font-size: clamp(54px, 6vw, 96px); font-weight: 650; letter-spacing: -.075em; line-height: .98; white-space: normal; overflow-wrap: normal; }
 .landing-hero h1 span,.landing-section h2 span,.landing-company h2 span { color: var(--landing-orange); }
 .landing-orbit-label { margin: 19px 0 0; color: #dfd6c9; font-size: clamp(14px, 1.55vw, 23px); letter-spacing: .48em; }
-.landing-intro { margin: 36px 0 0; color: #d1d0ce; font-size: clamp(15px, 1.4vw, 19px); line-height: 1.65; }
+.landing-intro { max-width: 350px; margin: 36px 0 0; color: #d1d0ce; font-size: clamp(15px, 1.4vw, 19px); line-height: 1.65; text-wrap: pretty; }
 .landing-hero-actions { margin-top: 30px; flex-wrap: wrap; }
 .landing-demo-note { margin: 15px 0 0; color: #88847d; font-size: 11px; }
 .landing-index { position: absolute; right: clamp(24px, 4vw, 72px); bottom: 34px; display: flex; align-items: center; gap: 13px; color: #c2bcb3; font-size: 9px; letter-spacing: .2em; }
@@ -190,10 +190,10 @@
 .auth-social { display: flex; gap: 10px; margin-top: 12px; }
 .auth-social button { flex: 1; border-color: #35312b; color: #ddd5c7; }
 
-@media (min-width: 1900px) { .landing-hero { min-height: min(1080px,100svh); padding-left: max(110px,calc((100vw - 1700px)/2)); } .landing-hero-copy { width: 700px; } }
+@media (min-width: 1900px) { .landing-hero { min-height: min(1080px,100svh); padding-left: max(110px,calc((100vw - 1700px)/2)); } .landing-hero-copy { width: min(600px, 44%); } }
 @media (max-width: 1050px) { .landing-header { gap: 14px; } .landing-nav { gap: 13px; } .landing-nav a { font-size: 10px; } .landing-header-actions { gap: 7px; } .landing-header-actions .landing-button { padding-inline: 12px; font-size: 10px; } .landing-section { grid-template-columns: 1fr; gap: 35px; } }
-@media (max-width: 760px) { .landing-header { min-height: 66px; flex-wrap: wrap; padding-inline: 18px; } .landing-nav { order: 3; width: 100%; justify-content: flex-start; overflow-x: auto; padding: 3px 0 10px; } .landing-header-actions { margin-left: auto; } .landing-header-actions .landing-button { min-height: 36px; } .landing-hero { min-height: 790px; align-items: start; padding: 180px 24px 100px; } .landing-character { object-position: 64% center; } .landing-hero-shade { background: linear-gradient(90deg,rgb(8 8 8 / 95%) 0%,rgb(8 8 8 / 80%) 45%,rgb(8 8 8 / 15%) 100%),linear-gradient(0deg,#080808 0%,rgb(8 8 8 / 8%) 38%,rgb(8 8 8 / 34%) 100%); } .landing-hero-copy { width: min(570px,100%); } .landing-hero h1 { font-size: clamp(60px,14vw,100px); } .landing-technology { grid-template-columns: 1fr; gap: 35px; padding-block: 65px; } .landing-company-main,.landing-product { grid-template-columns: 1fr; gap: 23px; } .landing-roadmap { grid-template-columns: 1fr; } .landing-roadmap-close,.landing-roadmap-note { grid-column: 1; } .landing-footer { flex-wrap: wrap; } .auth-shell { display: block; min-height: 100svh; padding: 1px 0; } .auth-portrait { width: 100%; height: 100%; opacity: .45; } .auth-portrait img { object-position: 62% center; } .auth-portrait::after { background: linear-gradient(90deg,rgb(8 8 8 / 78%),rgb(8 8 8 / 58%)),linear-gradient(0deg,#080808 0%,transparent 60%); } .auth-card { width: min(100% - 36px,440px); margin: 0 auto; padding: 40px 0; } }
-@media (max-width: 420px) { .landing-wordmark { gap: 7px; font-size: 9px; } .landing-monogram { font-size: 36px; } .landing-header-actions .landing-button-outline { display: none; } .landing-hero { min-height: 740px; padding-inline: 19px; } .landing-hero-actions { align-items: stretch; } .landing-button-large { min-height: 47px; padding-inline: 15px; font-size: 12px; } .landing-index { right: 19px; font-size: 8px; } .landing-product,.landing-section,.landing-company,.landing-contact { padding-inline: 21px; } .landing-manifesto { flex-wrap: wrap; font-size: 8px; } .landing-footer { padding-inline: 21px; } .auth-card { width: calc(100% - 36px); } .auth-social { flex-direction: column; } }
+@media (max-width: 760px) { .landing-header { min-height: 66px; flex-wrap: wrap; padding-inline: 18px; } .landing-nav { order: 3; width: 100%; justify-content: flex-start; overflow-x: auto; padding: 3px 0 10px; } .landing-header-actions { margin-left: auto; } .landing-header-actions .landing-button { min-height: 36px; } .landing-hero { min-height: max(790px, 100svh); align-items: flex-end; padding: 180px 24px 88px; } .landing-character { object-position: 66% center; } .landing-hero-shade { background: linear-gradient(0deg,#080808 0%,rgb(8 8 8 / 96%) 22%,rgb(8 8 8 / 72%) 43%,rgb(8 8 8 / 8%) 82%); } .landing-hero-copy { width: min(570px,100%); } .landing-hero h1 { font-size: clamp(48px, 10vw, 76px); } .landing-technology { grid-template-columns: 1fr; gap: 35px; padding-block: 65px; } .landing-company-main,.landing-product { grid-template-columns: 1fr; gap: 23px; } .landing-roadmap { grid-template-columns: 1fr; } .landing-roadmap-close,.landing-roadmap-note { grid-column: 1; } .landing-footer { flex-wrap: wrap; } .auth-shell { display: block; min-height: 100svh; padding: 1px 0; } .auth-portrait { width: 100%; height: 100%; opacity: .45; } .auth-portrait img { object-position: 62% center; } .auth-portrait::after { background: linear-gradient(90deg,rgb(8 8 8 / 78%),rgb(8 8 8 / 58%)),linear-gradient(0deg,#080808 0%,transparent 60%); } .auth-card { width: min(100% - 36px,440px); margin: 0 auto; padding: 40px 0; } }
+@media (max-width: 420px) { .landing-wordmark { gap: 7px; font-size: 9px; } .landing-monogram { font-size: 36px; } .landing-header-actions .landing-button-outline { display: none; } .landing-hero { min-height: max(740px, 100svh); padding: 150px 19px 64px; } .landing-hero-actions { align-items: stretch; } .landing-button-large { min-height: 47px; padding-inline: 15px; font-size: 12px; } .landing-index { right: 19px; font-size: 8px; } .landing-product,.landing-section,.landing-company,.landing-contact { padding-inline: 21px; } .landing-manifesto { flex-wrap: wrap; font-size: 8px; } .landing-footer { padding-inline: 21px; } .auth-card { width: calc(100% - 36px); } .auth-social { flex-direction: column; } }
 
 .dark {
   --background: #080808;
