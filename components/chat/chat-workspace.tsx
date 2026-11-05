@@ -5,14 +5,10 @@ import {
   ArrowClockwise,
   Check,
   CopySimple,
-  Eye,
-  EyeSlash,
   FileImage,
   GitBranch,
   List,
   Paperclip,
-  Microphone,
-  MicrophoneSlash,
   PaperPlaneTilt,
   PencilSimple,
   Plus,
@@ -35,22 +31,6 @@ import { VoiceModeControl } from "@/components/chat/voice-mode-control";
 import { KlarenVideoCall } from "@/components/chat/klaren-video-call";
 import type { ChatMessage, Conversation, LocalAttachment } from "@/types/workspace";
 
-type SpeechResult = { results: ArrayLike<ArrayLike<{ transcript: string }>> };
-type SpeechRecognizer = {
-  lang: string;
-  interimResults: boolean;
-  continuous: boolean;
-  onresult: ((event: SpeechResult) => void) | null;
-  onerror: (() => void) | null;
-  onend: (() => void) | null;
-  start: () => void;
-  stop: () => void;
-};
-type SpeechWindow = Window & {
-  SpeechRecognition?: new () => SpeechRecognizer;
-  webkitSpeechRecognition?: new () => SpeechRecognizer;
-};
-
 interface ChatWorkspaceProps {
   accountName: string;
   conversation: Conversation | null;
@@ -61,7 +41,6 @@ interface ChatWorkspaceProps {
   renderMarkdown: boolean;
   onNewChat: () => void;
   onRename: (conversation: Conversation) => void;
-  onTogglePortrait: () => void;
   onSend: (text: string, attachments: LocalAttachment[], mode?: "chat" | "video") => void;
   onCancel: () => void;
   onRegenerate: () => void;
@@ -90,7 +69,6 @@ export function ChatWorkspace({
   renderMarkdown,
   onNewChat,
   onRename,
-  onTogglePortrait,
   onSend,
   onCancel,
   onRegenerate,
@@ -102,9 +80,6 @@ export function ChatWorkspace({
 }: ChatWorkspaceProps) {
   const [draft, setDraft] = useState("");
   const [videoCallOpen, setVideoCallOpen] = useState(false);
-  const [voiceSupported, setVoiceSupported] = useState(false);
-  const [voiceRecording, setVoiceRecording] = useState(false);
-  const voiceRef = useRef<SpeechRecognizer | null>(null);
   const [attachments, setAttachments] = useState<LocalAttachment[]>([]);
   const [attachmentError, setAttachmentError] = useState("");
   const [uploading, setUploading] = useState(false);
@@ -114,35 +89,6 @@ export function ChatWorkspace({
   const imageInput = useRef<HTMLInputElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const messages = conversation?.messages ?? EMPTY_MESSAGES;
-
-  useEffect(() => {
-    const speech = window as SpeechWindow;
-    const frame = requestAnimationFrame(() => setVoiceSupported(Boolean(speech.SpeechRecognition || speech.webkitSpeechRecognition)));
-    return () => { cancelAnimationFrame(frame); voiceRef.current?.stop(); voiceRef.current = null; };
-  }, []);
-
-  function toggleVoiceInput() {
-    if (voiceRecording) { voiceRef.current?.stop(); setVoiceRecording(false); return; }
-    const speech = window as SpeechWindow;
-    const Recognizer = speech.SpeechRecognition ?? speech.webkitSpeechRecognition;
-    if (!Recognizer) { setAttachmentError("Голосовой ввод не поддерживается этим браузером."); return; }
-    try {
-      const recognition = new Recognizer();
-      recognition.lang = "ru-RU";
-      recognition.continuous = false;
-      recognition.interimResults = false;
-      recognition.onresult = (event) => {
-        const transcript = event.results[0]?.[0]?.transcript?.trim();
-        if (transcript) setDraft((previous) => (previous.trim() ? previous.trim() + " " : "") + transcript);
-      };
-      recognition.onerror = () => { setAttachmentError("Не удалось распознать речь. Проверь разрешение на микрофон."); setVoiceRecording(false); };
-      recognition.onend = () => { setVoiceRecording(false); voiceRef.current = null; };
-      voiceRef.current = recognition;
-      recognition.start();
-      setAttachmentError("");
-      setVoiceRecording(true);
-    } catch { setAttachmentError("Не удалось начать запись. Проверь доступ к микрофону."); setVoiceRecording(false); }
-  }
 
   useEffect(() => {
     transcriptEnd.current?.scrollIntoView({
@@ -305,12 +251,7 @@ export function ChatWorkspace({
           <IconButton label="Создать новый чат" onClick={onNewChat}>
             <Plus size={19} />
           </IconButton>
-          <IconButton
-            label={portraitVisible ? "Скрыть визуальный слой KLAREN" : "Показать визуальный слой KLAREN"}
-            onClick={onTogglePortrait}
-          >
-            {portraitVisible ? <EyeSlash size={18} /> : <Eye size={18} />}
-          </IconButton>
+
         </div>
       </header>
 
@@ -429,11 +370,9 @@ export function ChatWorkspace({
             {uploading && <span role="status" className="text-xs text-[#c6a46a]">Загрузка PDF…</span>}
             <input ref={anyFileInput} type="file" multiple className="hidden" onChange={(event) => void handleFiles(event)} />
             <input ref={imageInput} type="file" accept="image/png,image/jpeg" multiple className="hidden" onChange={(event) => void handleFiles(event)} />
-            <button type="button" onClick={toggleVoiceInput} disabled={!voiceSupported || isTyping} aria-label={voiceRecording ? "Остановить диктовку" : "Голосовой ввод"} title={voiceSupported ? "Распознать речь в текст (отправка вручную)" : "Браузер не поддерживает распознавание речи"} className={`mb-0.5 flex size-9 shrink-0 items-center justify-center rounded-full transition-colors disabled:opacity-30 ${voiceRecording ? "bg-[#382b1d] text-[#e9b56d]" : "text-[#a6a6a6] hover:bg-[#242424] hover:text-[#e1c78f]"}`}>
-              {voiceRecording ? <MicrophoneSlash size={19} /> : <Microphone size={19} />}
-            </button>
+
             <VoiceModeControl messages={messages} isTyping={isTyping} onSend={onSend} />
-            <Button type="button" variant="ghost" size="icon-lg" onClick={() => setVideoCallOpen(true)} aria-label="Видеозвонок с Кларенсией" title="KLAREN · видеозвонок" className="mb-0.5 size-9 rounded-full text-[#c4ac7c] hover:bg-[#28231c] hover:text-[#e1c78f]"><VideoCamera size={20}/></Button>
+            <Button type="button" variant="ghost" size="icon-lg" onClick={() => setVideoCallOpen((current) => !current)} aria-pressed={videoCallOpen} aria-label={videoCallOpen ? "Закрыть видеозвонок" : "Видеозвонок с Кларенсией"} title="KLAREN · видеозвонок" className="mb-0.5 size-9 rounded-full text-[#c4ac7c] hover:bg-[#28231c] hover:text-[#e1c78f]"><VideoCamera size={20}/></Button>
             <Textarea
               ref={textareaRef}
               rows={1}
