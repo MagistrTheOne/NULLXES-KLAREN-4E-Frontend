@@ -10,8 +10,8 @@ export function LandingHero() {
         <p className="landing-eyebrow">NULLXES PRESENTS</p>
         <h1 id="landing-title">KLAREN <span>4E</span></h1>
         <p className="landing-orbit-label">ORBITAL INTELLIGENCE</p>
-        <p className="landing-hero-line">Not another assistant.<br /><span>An intelligence with a mind of her own.</span></p>
-        <p className="landing-intro">Built by NULLXES. Designed to reason, challenge assumptions, and engage beyond scripted responses.</p>
+        <p className="landing-hero-line">A mind of her own.<br /><span>And a personality you won&apos;t forget.</span></p>
+        <p className="landing-intro">Meet Klaren. Sharp, sarcastic, unapologetically herself. She reasons, challenges, talks back — and has opinions about yours.</p>
         <div className="landing-hero-actions">
           <Link className="landing-button landing-button-primary landing-button-large" href="/auth/login?returnTo=%2Fapp">Talk to Klaren <span aria-hidden="true">↗</span></Link>
           <a className="landing-button landing-button-outline landing-button-large" href="#product-details">Meet KLAREN 4E</a>
