@@ -8,6 +8,7 @@ import {
   Eye,
   EyeSlash,
   FileImage,
+  GitBranch,
   List,
   Paperclip,
   PaperPlaneTilt,
@@ -42,6 +43,7 @@ interface ChatWorkspaceProps {
   onSend: (text: string, attachments: LocalAttachment[]) => void;
   onCancel: () => void;
   onRegenerate: () => void;
+  onBranch: (messageId: string) => void;
   onCopyError: (message: string) => void;
   onToggleMobileSidebar: () => void;
   searchTargetMessageId: string | null;
@@ -69,6 +71,7 @@ export function ChatWorkspace({
   onSend,
   onCancel,
   onRegenerate,
+  onBranch,
   onCopyError,
   onToggleMobileSidebar,
   searchTargetMessageId,
@@ -263,6 +266,7 @@ export function ChatWorkspace({
                   canRegenerate={lastAssistant}
                   onCopy={() => void copyMessage(message)}
                   onRegenerate={onRegenerate}
+                  onBranch={() => onBranch(message.id)}
                 />
               );
             })}
@@ -388,6 +392,7 @@ function MessageRow({
   canRegenerate,
   onCopy,
   onRegenerate,
+  onBranch,
 }: {
   message: ChatMessage;
   renderMarkdown: boolean;
@@ -395,6 +400,7 @@ function MessageRow({
   canRegenerate: boolean;
   onCopy: () => void;
   onRegenerate: () => void;
+  onBranch: () => void;
 }) {
   const user = message.role === "user";
   return (
@@ -437,18 +443,21 @@ function MessageRow({
             </div>
           )}
         </div>
-        {!user && (
-          <div className="mt-1 flex items-center gap-1">
+        <div className="mt-1 flex items-center gap-1">
+          {!user && (
             <IconButton label={copied ? "Скопировано" : "Скопировать ответ"} onClick={onCopy}>
               {copied ? <Check size={15} /> : <CopySimple size={15} />}
             </IconButton>
-            {canRegenerate && (
-              <IconButton label="Повторить ответ" onClick={onRegenerate}>
-                <ArrowClockwise size={15} />
-              </IconButton>
-            )}
-          </div>
-        )}
+          )}
+          <IconButton label="Продолжить в отдельной ветке" onClick={onBranch}>
+            <GitBranch size={15} />
+          </IconButton>
+          {!user && canRegenerate && (
+            <IconButton label="Повторить ответ" onClick={onRegenerate}>
+              <ArrowClockwise size={15} />
+            </IconButton>
+          )}
+        </div>
       </div>
     </article>
   );
