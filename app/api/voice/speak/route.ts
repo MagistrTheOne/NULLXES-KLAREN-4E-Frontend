@@ -1,9 +1,10 @@
-import { getAuthenticatedUser } from "@/lib/auth/server";
+import { requireVoiceUser } from "@/lib/voice/server/auth";
 import { cleanSpokenText, resolveKlarenciaVoice } from "@/lib/voice/server/eleven-v4";
 
 export async function POST(request: Request): Promise<Response> {
-  const user = await getAuthenticatedUser().catch(() => null);
-  if (!user) return Response.json({ error: "Требуется вход." }, { status: 401 });
+  const account = await requireVoiceUser();
+  if (account instanceof Response) return account;
+  const user = account;
   const key = process.env.ELEVENLABS_API_KEY;
   if (!key) return Response.json({ error: "Озвучка недоступна." }, { status: 503 });
   const data: unknown = await request.json().catch(() => null);
