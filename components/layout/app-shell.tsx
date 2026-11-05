@@ -300,6 +300,14 @@ export function AppShell({ account }: AppShellProps) {
           index === history.length - 1 && message.role === "user"
             ? prompt
             : message.content;
+        if (message.role === "user" && index !== history.length - 1) {
+          const textFiles = message.attachments.filter((attachment) => attachment.contentText);
+          if (textFiles.length) {
+            const available = Math.max(0, MAX_CHAT_MESSAGE_LENGTH - content.length - 100);
+            const files = textFiles.map((file) => `[Файл: ${file.name}]\n${file.contentText}\n[/Файл]`).join("\n");
+            content += "\n\nПрикреплённые текстовые данные:\n" + files.slice(0, available);
+          }
+        }
         if (content.length > MAX_CHAT_MESSAGE_LENGTH) {
           content = content.slice(-MAX_CHAT_MESSAGE_LENGTH);
         }
@@ -390,9 +398,13 @@ export function AppShell({ account }: AppShellProps) {
     const conversation = existingConversation ?? createConversation();
     if (!existingConversation) setActiveConversationId(conversation.id);
 
-    const prompt =
-      text ||
-      attachments.map((attachment) => `Вложение: ${attachment.name}`).join("\n").slice(0, MAX_CHAT_MESSAGE_LENGTH);
+    const readableFiles = attachments.filter((attachment) => attachment.contentText);
+    const contentFromFiles = readableFiles.map((file) => `[Файл: ${file.name}]\n${file.contentText}\n[/Файл]`).join("\n");
+    const prompt = (text.trim() + (contentFromFiles ? "\n\nПрикреплённые текстовые данные:\n" + contentFromFiles : "")).slice(0, MAX_CHAT_MESSAGE_LENGTH);
+    if (!prompt.trim()) {
+      setWorkspaceNotice("Пока доступно чтение текстовых файлов. Анализ изображений и PDF ещё не подключён к модели.");
+      return;
+    }
     const userMessage = createMessage("user", text, attachments);
     const messageCount = conversation.messages.filter((message) => message.role === "user").length;
     const nextTitle =
