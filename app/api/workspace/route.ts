@@ -7,6 +7,7 @@ import {
   workspaceMessages,
   workspacePreferences,
   workspaceProjects,
+  telegramMessages,
 } from "@/lib/db/schema";
 import { getAuthenticatedUser } from "@/lib/auth/server";
 import { readLimitedBody } from "@/lib/http/read-limited-body";
@@ -43,7 +44,7 @@ export async function GET(): Promise<Response> {
   if (!userId) return Response.json({ error: "Требуется вход в аккаунт." }, { status: 401 });
 
   try {
-    const [projects, conversations, messages, preferenceRows] = await Promise.all([
+    const [projects, conversations, messages, preferenceRows, telegramRows] = await Promise.all([
       db.select().from(workspaceProjects)
         .where(eq(workspaceProjects.userId, userId))
         .orderBy(asc(workspaceProjects.createdAt)),
@@ -55,6 +56,9 @@ export async function GET(): Promise<Response> {
       db.select().from(workspacePreferences)
         .where(eq(workspacePreferences.userId, userId))
         .limit(1),
+      db.select().from(telegramMessages)
+        .where(eq(telegramMessages.userId, userId))
+        .orderBy(asc(telegramMessages.createdAt)),
     ]);
 
     const messagesByConversation = new Map<string, typeof messages>();
@@ -64,13 +68,35 @@ export async function GET(): Promise<Response> {
       messagesByConversation.set(message.conversationId, current);
     }
 
+    const telegramThreads = new Map<string, typeof telegramRows>();
+    for (const item of telegramRows) {
+      const key = `telegram:${item.chatId}:${item.businessConnectionId || "bot"}`;
+      const rows = telegramThreads.get(key) ?? [];
+      rows.push(item);
+      telegramThreads.set(key, rows);
+    }
+    const telegramConversations = Array.from(telegramThreads, ([id, rows]) => ({
+      id,
+      title: `Telegram · ${rows[0]?.businessConnectionId ? "Business" : "Bot"} · ${rows[0]?.chatId}`,
+      createdAt: rows[0]?.createdAt ?? new Date().toISOString(),
+      updatedAt: rows.at(-1)?.createdAt ?? new Date().toISOString(),
+      projectId: null,
+      messages: rows.map((row) => ({
+        id: row.id,
+        role: row.role,
+        content: row.content,
+        createdAt: row.createdAt,
+        attachments: [],
+      })),
+    }));
+
     return Response.json({
       projects: projects.map((project) => ({
         id: project.id,
         name: project.name,
         createdAt: new Date(project.createdAt).toISOString(),
       })),
-      conversations: conversations
+      conversations: [...conversations
         .map((conversation) => ({
           id: conversation.id,
           title: conversation.title,
@@ -87,6 +113,7 @@ export async function GET(): Promise<Response> {
             }),
           ),
         }))
+        , ...telegramConversations]
         .sort((left, right) => right.updatedAt.localeCompare(left.updatedAt)),
       preferences: { ...DEFAULT_PREFERENCES, ...preferenceRows[0]?.preferences },
     });
@@ -161,7 +188,8 @@ export async function PUT(request: Request): Promise<Response> {
     return Response.json({ error: "Проверьте данные и повторите попытку." }, { status: 400 });
   }
 
-  const data = parsed.data;
+  // Telegram threads are read-only projections, not part of full-workspace replacement.
+  const data = { ...parsed.data, conversations: parsed.data.conversations.filter((conversation) => !conversation.id.startsWith("telegram:")) };
   const operations: [BatchItem<"pg">, ...BatchItem<"pg">[]] = [
     db.delete(workspaceMessages).where(eq(workspaceMessages.userId, userId)),
     db.delete(workspaceConversations).where(eq(workspaceConversations.userId, userId)),
