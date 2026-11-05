@@ -247,6 +247,15 @@ export function AppShell({ account }: AppShellProps) {
     setWorkspaceNotice("");
   }
 
+  function newProjectChat(projectId: string) {
+    const conversation = { ...createConversation(), projectId };
+    setData((current) => ({ ...current, conversations: [conversation, ...current.conversations] }));
+    setActiveConversationId(conversation.id);
+    setActiveWorkspace("chat");
+    setMobileSidebarOpen(false);
+    setWorkspaceNotice("");
+  }
+
   function newChat() {
     const conversation = createConversation();
     setData((current) => ({
@@ -326,6 +335,7 @@ export function AppShell({ account }: AppShellProps) {
           userName: data.preferences.userName,
           userContext: data.preferences.userContext,
           pinnedMemories: data.preferences.pinnedMemories.map((memory) => memory.text),
+          projectContext: data.preferences.projectContexts[data.conversations.find((item) => item.id === conversationId)?.projectId ?? ""] ?? "",
           sharpness: data.preferences.sharpness,
           roleplayEnabled: data.preferences.roleplayEnabled,
           adultThemesEnabled: data.preferences.adultThemesEnabled,
@@ -758,6 +768,9 @@ export function AppShell({ account }: AppShellProps) {
                 projects={data.projects}
                 conversations={data.conversations}
                 onCreate={() => openNameDialog("project")}
+                projectContexts={data.preferences.projectContexts}
+                onUpdateContext={(projectId, value) => updatePreference("projectContexts", { ...data.preferences.projectContexts, [projectId]: value })}
+                onNewProjectChat={newProjectChat}
                 onOpenConversation={openConversation}
                 onRename={(project) => openNameDialog("project", project.id)}
                 onDelete={(project) => setConfirmTarget({ action: "delete-project", project })}
