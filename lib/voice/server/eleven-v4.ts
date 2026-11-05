@@ -5,7 +5,7 @@ const API = "https://api.elevenlabs.io";
 export async function resolveKlarenciaVoice(): Promise<string> {
   const key = process.env.ELEVENLABS_API_KEY;
   if (!key) throw new Error("ElevenLabs is not configured.");
-  const configuredId = process.env.ELEVENLABS_VOICE_ID?.trim() || "e738bbd5-79e5-424b-8cbc-6091ef01b82b";
+  const configuredId = process.env.ELEVENLABS_VOICE_ID?.trim();
   if (configuredId) return configuredId;
   const response = await fetch(`${API}/v2/voices?search=${encodeURIComponent("KLARENCIA MARIA")}&page_size=100`, {
     headers: { "xi-api-key": key }, cache: "no-store", signal: AbortSignal.timeout(12_000),
