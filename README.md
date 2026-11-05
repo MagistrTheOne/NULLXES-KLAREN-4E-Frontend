@@ -31,6 +31,14 @@ The chat interface sends messages through a server-side API route. Neon Managed 
 
 ## Interface
 
+The public `/` landing is composed from independent components in `components/landing`. It uses the approved character assets and English product copy. Technology has a compact architecture panel; research milestones are identified as goals. Contact details appear in Contact, without repetition in the footer.
+
+Account routes: `/auth/login`, `/auth/register`, `/auth/forgot-password`, `/auth/reset-password`, `/auth/verify-email`. `/auth` redirects to login. Login shows email/password with recovery and registration links; verification is a separate contextual flow. Authenticated visitors entering through login continue to `/app`.
+
+The sidebar account menu reads the real session and provides profile editing, workspace settings, password change, revocation of other sessions, and logout. No test credentials are included in this repository.
+
+See [implementation and verification report](docs/frontend-delivery.md) for checks and external configuration requirements.
+
 The application is organized into six primary workspaces:
 
 | Workspace | Description |
