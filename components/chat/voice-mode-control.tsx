@@ -22,6 +22,7 @@ export function VoiceModeControl({
   const microphone = useRef<MediaStream | null>(null);
   const chunks = useRef<Blob[]>([]);
   const discardRecording = useRef(false);
+  const sessionActive = useRef(false);
   const audio = useRef<HTMLAudioElement | null>(null);
   const audioUrl = useRef<string | null>(null);
   const controller = useRef<AbortController | null>(null);
@@ -51,6 +52,7 @@ export function VoiceModeControl({
       audio.current?.pause();
       microphone.current?.getTracks().forEach((track) => track.stop());
       discardRecording.current = true;
+      sessionActive.current = false;
       recorder.current?.stop();
       if (audioUrl.current) URL.revokeObjectURL(audioUrl.current);
     };
@@ -103,6 +105,7 @@ export function VoiceModeControl({
       if (!response.ok) throw new Error("STT failed");
       const { text } = await response.json() as { text?: string };
       if (!text?.trim()) throw new Error("Empty transcript");
+      if (!sessionActive.current) { setStage("idle"); return; }
       lastBeforeRequest.current = [...messages].reverse().find((item) => item.role === "assistant")?.id;
       setWaiting(true);
       setStage("replying");
@@ -120,7 +123,9 @@ export function VoiceModeControl({
     try {
       const status = await fetch("/api/voice/status", { cache: "no-store" });
       if (!status.ok) { setNotice("KLARENCIA MARIA пока недоступна через ElevenLabs API."); return; }
+      if (!sessionActive.current) return;
       const stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true }, video: false });
+      if (!sessionActive.current) { stream.getTracks().forEach((track) => track.stop()); return; }
       microphone.current = stream;
       const mime = ["audio/webm;codecs=opus", "audio/webm", "audio/ogg;codecs=opus"].find((v) => MediaRecorder.isTypeSupported(v));
       if (!mime) { cleanupMicrophone(); setNotice("Нет поддерживаемого аудиоформата."); return; }
@@ -162,6 +167,7 @@ export function VoiceModeControl({
   return (
     <div className="flex items-center gap-1.5">
       <button type="button" onClick={() => {
+        sessionActive.current = !enabled;
         if (enabled) {
           discardRecording.current = true;
           recorder.current?.stop();
