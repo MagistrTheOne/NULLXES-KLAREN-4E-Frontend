@@ -36,7 +36,7 @@ async function stageCall<T>(stage: TestStage, fn: () => Promise<T>): Promise<T> 
     const raw = error instanceof Error ? error.message : "unknown_error";
     // Only code-generated error signatures; never print request bodies, private messages or API URLs with tokens.
     const reason = /^(Telegram |Voice |Invalid voice|xAI STT HTTP |ElevenLabs V4 HTTP |Missing |Empty Grok|Telegram sendVoice failed)/.test(raw)
-      ? raw.slice(0, 100)
+      ? raw.slice(0, 230)
       : (error instanceof Error ? error.name : "unknown_error");
     throw new TestStageError(stage, status, reason);
   }
@@ -62,9 +62,17 @@ async function telegram(method: string, payload: Record<string, unknown>) {
     signal: AbortSignal.timeout(20_000),
     cache: "no-store",
   });
-  if (!response.ok) throw new Error(`Telegram ${method} HTTP ${response.status}`);
-  const body = await response.json() as { ok?: boolean; result?: unknown };
-  if (!body.ok) throw new Error(`Telegram ${method} failed`);
+  const body = await response.json() as { ok?: boolean; result?: unknown; description?: string; error_code?: number };
+  if (!response.ok || !body.ok) {
+    const raw = body.description ?? "undisclosed Telegram error";
+    // Telegram's API errors can contain account identifiers; redact them before logging.
+    const safe = raw.replace(/https?:\\/\\/\\S+/gi, "[url]")
+      .replace(/@[a-zA-Z0-9_]+/g, "[username]")
+      .replace(/\\b\\d{5,}\\b/g, "[id]")
+      .replace(/[^a-zA-Z0-9 ,.!:'()_\\/-]/g, "?")
+      .slice(0, 180);
+    throw new Error(`Telegram ${method} HTTP ${response.status}: ${safe}`);
+  }
   return body.result;
 }
 
