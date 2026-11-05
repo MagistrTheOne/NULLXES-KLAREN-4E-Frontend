@@ -1,12 +1,13 @@
 "use client";
 
-import { ArrowRight, ChatCircleDots, ChatsCircle, Folder } from "@phosphor-icons/react";
+import { ArrowRight, BracketsCurly, ChatCircleDots, ChatsCircle, Folder } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/button";
 
 interface ToolsWorkspaceProps {
   onOpenChat: () => void;
   onOpenConversations: () => void;
   onOpenProjects: () => void;
+  onStartCoding: () => void;
 }
 
 const workspaces = [
@@ -16,6 +17,13 @@ const workspaces = [
     icon: ChatCircleDots,
     action: "Открыть чат",
     onOpen: "chat",
+  },
+  {
+    title: "Режим кодинга",
+    description: "Писать, объяснять и исправлять код в выбранном стиле.",
+    icon: BracketsCurly,
+    action: "Начать кодинг",
+    onOpen: "coding",
   },
   {
     title: "Диалоги",
@@ -37,11 +45,13 @@ export function ToolsWorkspace({
   onOpenChat,
   onOpenConversations,
   onOpenProjects,
+  onStartCoding,
 }: ToolsWorkspaceProps) {
   const actions = {
     chat: onOpenChat,
     conversations: onOpenConversations,
     projects: onOpenProjects,
+    coding: onStartCoding,
   };
 
   return (

@@ -1,9 +1,58 @@
-import type { WorkspaceData } from "@/types/workspace";
+import type { Preferences, WorkspaceData } from "@/types/workspace";
 
 const STORAGE_KEY = "nullxes-klaren-workspace-v1";
 
+export const DEFAULT_PREFERENCES: Preferences = {
+  sidebarCollapsed: false,
+  portraitVisible: true,
+  reducedMotion: false,
+  enterToSend: true,
+  userName: "",
+  userContext: "",
+  sharpness: "wry",
+  roleplayEnabled: false,
+  adultThemesEnabled: false,
+  codingModeEnabled: false,
+  codingStyle: "balanced",
+  renderMarkdown: true,
+};
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
+}
+
+function isValidPreferences(value: Record<string, unknown>): boolean {
+  const booleanKeys = [
+    "sidebarCollapsed",
+    "portraitVisible",
+    "reducedMotion",
+    "enterToSend",
+  ] as const;
+  const optionalBooleanKeys = [
+    "roleplayEnabled",
+    "adultThemesEnabled",
+    "codingModeEnabled",
+    "renderMarkdown",
+  ] as const;
+
+  return (
+    booleanKeys.every((key) => typeof value[key] === "boolean") &&
+    optionalBooleanKeys.every(
+      (key) => value[key] === undefined || typeof value[key] === "boolean",
+    ) &&
+    (value.userName === undefined ||
+      (typeof value.userName === "string" && value.userName.length <= 60)) &&
+    (value.userContext === undefined ||
+      (typeof value.userContext === "string" && value.userContext.length <= 500)) &&
+    (value.sharpness === undefined ||
+      value.sharpness === "balanced" ||
+      value.sharpness === "wry" ||
+      value.sharpness === "sharp") &&
+    (value.codingStyle === undefined ||
+      value.codingStyle === "balanced" ||
+      value.codingStyle === "concise" ||
+      value.codingStyle === "step-by-step")
+  );
 }
 
 function isValidDate(value: unknown): value is string {
@@ -18,15 +67,8 @@ function isWorkspaceData(value: unknown): value is WorkspaceData {
   if (!isRecord(value.preferences)) return false;
 
   const { preferences } = value;
-  const preferenceKeys = [
-    "sidebarCollapsed",
-    "portraitVisible",
-    "reducedMotion",
-    "enterToSend",
-  ] as const;
-
   return (
-    preferenceKeys.every((key) => typeof preferences[key] === "boolean") &&
+    isValidPreferences(preferences) &&
     value.conversations.every(
       (conversation) =>
         isRecord(conversation) &&
@@ -80,7 +122,13 @@ export function readWorkspaceData(): WorkspaceData | null {
     throw new Error("Формат сохранённых данных не поддерживается.");
   }
 
-  return parsed;
+  return {
+    ...parsed,
+    preferences: {
+      ...DEFAULT_PREFERENCES,
+      ...parsed.preferences,
+    },
+  };
 }
 
 export function writeWorkspaceData(data: WorkspaceData): void {

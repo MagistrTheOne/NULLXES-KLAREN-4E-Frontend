@@ -43,6 +43,14 @@ export interface Preferences {
   portraitVisible: boolean;
   reducedMotion: boolean;
   enterToSend: boolean;
+  userName: string;
+  userContext: string;
+  sharpness: "balanced" | "wry" | "sharp";
+  roleplayEnabled: boolean;
+  adultThemesEnabled: boolean;
+  codingModeEnabled: boolean;
+  codingStyle: "balanced" | "concise" | "step-by-step";
+  renderMarkdown: boolean;
 }
 
 export interface WorkspaceData {

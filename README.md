@@ -14,9 +14,7 @@ This repository contains the official web interface for KLAREN 4E, designed to p
 
 The interface is built around a distinct AI identity, with a premium minimalist design and a modular architecture intended for integration with the KLAREN 4E inference runtime.
 
-**Current release: Frontend MVP**
-
-The application currently uses demonstration responses. Live model inference and advanced multimodal services are not yet connected.
+The chat interface sends messages through a server-side API route. Conversation history, projects, and preferences are stored in the browser.
 
 ## Technology Stack
 
@@ -36,14 +34,16 @@ The application is organized into six primary workspaces:
 |---|---|
 | New Chat | Local chat experience with a replaceable response adapter |
 | Conversations | Search, rename, delete, and organize locally saved conversations |
-| Model | Model identity and an explicit account of what is not connected |
-| Tools | Honest availability states for local, preview, and unconnected features |
+| Model | KLAREN 4E product identity |
+| Tools | Chat, coding-focused mode, conversation, and project workspaces |
 | Projects | Create projects and associate conversations with them |
-| Settings | Sidebar, portrait, motion, keyboard, and local history preferences |
+| Settings | User profile, response style, coding and Markdown preferences, interface and history controls |
 
 The design follows the NULLXES visual identity: black and graphite surfaces, restrained metallic gold, minimal ornamentation, and a character-focused interface.
 
-All chat content, projects, preferences, and locally selected image previews are stored in the current browser. No backend requests or model inference are made. Demo replies are clearly labeled, deterministic, and replaceable through the chat provider interface. Other file attachments are represented by their local names only; they are not uploaded or processed.
+Conversation history, projects, preferences, and selected image previews are stored in the current browser. Chat requests go to `/api/chat`; attachments are not uploaded as model input.
+
+The optional user name and context are stored in browser storage and included in chat requests so they can personalize responses. Response-style controls cover tone, roleplay, adult themes, and coding verbosity. Coding mode changes response instructions but does not execute tools or inspect local project files. Assistant messages support Markdown, including syntax-highlighted fenced code; this can be disabled in Settings.
 
 ## Architecture
 The frontend separates reusable UI, workspace features, local persistence, and inference communication.
@@ -57,16 +57,37 @@ NULLXES KLAREN 4E
 │   ├── components/chat/         Messages and composer
 │   └── components/workspaces/   Conversations, model, tools, projects, settings
 │
-├── Application Services
-│   ├── lib/chat/                ChatProvider and local demo adapter
-│   ├── lib/storage/             Browser persistence
-│   └── types/                   Shared contracts
+├── Server API
+│   ├── app/api/chat/            Validated streaming chat endpoint
+│   └── lib/chat/server/         Fixed inference chain and adapters
 │
-└── Intelligence Runtime
-    └── KLAREN 4E API (Future Integration)
+└── Browser Services
+    ├── lib/chat/chat-client.ts  Provider-independent SSE client
+    └── lib/storage/             Browser persistence
 ```
 
-`ChatProvider` is the integration boundary. `MockChatProvider` is the only provider selected by the UI. `KLARENRuntimeProvider` explicitly reports that the runtime is not configured; it does not make network requests.
+The server sends chat requests only to xAI Grok. It never switches providers or retries through OpenAI. A provider failure is returned as an honest chat error; partial responses are not restarted. The browser always uses the same `/api/chat` SSE contract: `message.delta`, `message.completed`, and `message.error`. xAI uses the official `https://api.x.ai/v1` base URL and defaults to `grok-4.7`. See the [xAI quickstart](https://docs.x.ai/developers/quickstart), [text generation guide](https://docs.x.ai/developers/model-capabilities/text/generate-text), and [streaming guide](https://docs.x.ai/developers/model-capabilities/text/streaming).
+
+Each event is sent as `data: <JSON>\n\n`:
+
+```text
+message.delta     {"type":"message.delta","delta":"text"}
+message.completed {"type":"message.completed"}
+message.error     {"type":"message.error","message":"Не удалось отправить сообщение. Повторите попытку.","retryable":true}
+```
+
+### Server configuration
+
+Use the single root `.env` file. Never prefix credentials with `NEXT_PUBLIC_`.
+
+| Variable | Purpose |
+|---|---|
+| `XAI_API_KEY` | Server-side xAI credential |
+| `XAI_MODEL` | xAI model identifier; defaults to `grok-4.7` |
+
+When the KLAREN 4E inference service is ready, replace the server-side xAI adapter with the native model endpoint; no browser provider or model selection is involved.
+
+Restart the development server after changing `.env`. The endpoint limits requests to 10 per minute per forwarded client address and caps each output at 1,024 tokens. This in-memory limit is not a substitute for authentication or distributed rate limiting; do not deploy with a billable provider enabled until access control and production spending controls are in place.
 
 ## Getting Started
 
@@ -103,13 +124,13 @@ npm run start
 | Component | Status |
 |---|---|
 | Visual design | Concept approved |
-| Frontend architecture | Local MVP |
-| Chat interface | Functional, local demo replies |
+| Frontend architecture | Server-side chat API with local workspace storage |
+| Chat interface | Streaming through `/api/chat` |
 | Conversation persistence | Implemented in browser storage |
 | Project management | Implemented in browser storage |
 | Settings and navigation | Implemented |
 | Image attachments | Local preview only |
-| Model API integration | Planned |
+| Chat inference | xAI Grok |
 | Audio and vision integration | Planned |
 | External tool execution | Planned |
 | Physical AI integration | Research roadmap |
@@ -133,7 +154,7 @@ Do not commit API keys, credentials, private model artifacts, or production envi
 
 Backend credentials and sensitive operations must remain server-side.
 
-The demonstration frontend is not a production inference service.
+Do not expose a billable chat provider in a public deployment until authentication and production-grade spending controls are in place.
 
 ## Organization
 

@@ -13,6 +13,7 @@ import {
   PaperPlaneTilt,
   PencilSimple,
   Plus,
+  Stop,
   X,
 } from "@phosphor-icons/react";
 import {
@@ -25,6 +26,7 @@ import {
 } from "react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
+import { MarkdownContent } from "@/components/chat/markdown-content";
 import type { ChatMessage, Conversation, LocalAttachment } from "@/types/workspace";
 
 interface ChatWorkspaceProps {
@@ -33,10 +35,12 @@ interface ChatWorkspaceProps {
   portraitVisible: boolean;
   enterToSend: boolean;
   reducedMotion: boolean;
+  renderMarkdown: boolean;
   onNewChat: () => void;
   onRename: (conversation: Conversation) => void;
   onTogglePortrait: () => void;
   onSend: (text: string, attachments: LocalAttachment[]) => void;
+  onCancel: () => void;
   onRegenerate: () => void;
   onCopyError: (message: string) => void;
   onToggleMobileSidebar: () => void;
@@ -56,10 +60,12 @@ export function ChatWorkspace({
   portraitVisible,
   enterToSend,
   reducedMotion,
+  renderMarkdown,
   onNewChat,
   onRename,
   onTogglePortrait,
   onSend,
+  onCancel,
   onRegenerate,
   onCopyError,
   onToggleMobileSidebar,
@@ -232,6 +238,7 @@ export function ChatWorkspace({
 
           <div className="space-y-6">
             {messages.map((message, index) => {
+              if (isTyping && message.role === "assistant" && !message.content) return null;
               const lastAssistant =
                 message.role === "assistant" &&
                 index === messages.length - 1;
@@ -239,6 +246,7 @@ export function ChatWorkspace({
                 <MessageRow
                   key={message.id}
                   message={message}
+                  renderMarkdown={renderMarkdown}
                   copied={copiedMessageId === message.id}
                   canRegenerate={lastAssistant}
                   onCopy={() => void copyMessage(message)}
@@ -315,6 +323,7 @@ export function ChatWorkspace({
               ref={textareaRef}
               rows={1}
               value={draft}
+              maxLength={8_000}
               onChange={(event) => setDraft(event.target.value)}
               onKeyDown={handleKeyDown}
               placeholder="Напиши Кларенсии..."
@@ -330,15 +339,26 @@ export function ChatWorkspace({
             >
               <FileImage size={19} />
             </button>
-            <button
-              type="button"
-              onClick={() => submitMessage()}
-              disabled={isTyping || (!draft.trim() && attachments.length === 0)}
-              aria-label={isTyping ? "Подождите ответа" : "Отправить сообщение"}
-              className="mb-0.5 flex size-10 shrink-0 items-center justify-center rounded-full bg-[#c6a46a] text-[#100e0a] transition-colors hover:bg-[#d6b77e] disabled:cursor-not-allowed disabled:opacity-40"
-            >
-              <PaperPlaneTilt size={18} weight="fill" />
-            </button>
+            {isTyping ? (
+              <button
+                type="button"
+                onClick={onCancel}
+                aria-label="Остановить ответ"
+                className="mb-0.5 flex size-10 shrink-0 items-center justify-center rounded-full border border-[#75603b] text-[#e3c88e] transition-colors hover:bg-[#242019]"
+              >
+                <Stop size={17} weight="fill" />
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={() => submitMessage()}
+                disabled={!draft.trim() && attachments.length === 0}
+                aria-label="Отправить сообщение"
+                className="mb-0.5 flex size-10 shrink-0 items-center justify-center rounded-full bg-[#c6a46a] text-[#100e0a] transition-colors hover:bg-[#d6b77e] disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                <PaperPlaneTilt size={18} weight="fill" />
+              </button>
+            )}
           </div>
         </div>
         <p className="mx-auto mt-2 max-w-[980px] px-1 text-center text-[10px] leading-4 text-[#797979]">
@@ -351,12 +371,14 @@ export function ChatWorkspace({
 
 function MessageRow({
   message,
+  renderMarkdown,
   copied,
   canRegenerate,
   onCopy,
   onRegenerate,
 }: {
   message: ChatMessage;
+  renderMarkdown: boolean;
   copied: boolean;
   canRegenerate: boolean;
   onCopy: () => void;
@@ -376,7 +398,11 @@ function MessageRow({
             ? "rounded-tr-md border-[#4c4030] bg-[#211d17] text-[#eee7dc]"
             : "rounded-tl-md border-[#323232] bg-[#111]/95 text-[#e1e1e1]"
         }`}>
-          {message.content && <p>{message.content}</p>}
+          {message.content && (
+            renderMarkdown
+              ? <MarkdownContent value={message.content} />
+              : <p className="whitespace-pre-wrap">{message.content}</p>
+          )}
           {message.attachments.length > 0 && (
             <div className={`flex flex-wrap gap-2 ${message.content ? "mt-3" : ""}`}>
               {message.attachments.map((attachment) => (

@@ -1,0 +1,4 @@
+export const MAX_CHAT_MESSAGES = 40;
+export const MAX_CHAT_MESSAGE_LENGTH = 8_000;
+export const MAX_CHAT_REQUEST_BYTES = 48_000;
+export const MAX_CHAT_HISTORY_LENGTH = 32_000;

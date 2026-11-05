@@ -9,6 +9,7 @@ import {
   CaretRight,
   Folder,
   GearSix,
+  UserCircle,
   Wrench,
 } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/button";
@@ -23,6 +24,7 @@ interface SidebarProps {
   activeWorkspace: Workspace;
   collapsed: boolean;
   conversationCount: number;
+  userName: string;
   onCollapse: () => void;
   onNavigate: (workspace: Workspace) => void;
   onNewChat: () => void;
@@ -44,6 +46,7 @@ export function Sidebar({
   activeWorkspace,
   collapsed,
   conversationCount,
+  userName,
   onCollapse,
   onNavigate,
   onNewChat,
@@ -138,6 +141,26 @@ export function Sidebar({
             className="h-auto w-full rounded-sm object-contain opacity-75"
           />
         )}
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <button
+              type="button"
+              onClick={() => onNavigate("settings")}
+              className={`mt-3 flex h-10 w-full items-center rounded-md border border-[#292929] text-left text-[#c8c0b2] transition-colors hover:border-[#5b4b30] hover:bg-[#171511] hover:text-[#ead5aa] ${
+                collapsed ? "justify-center px-0" : "gap-2.5 px-2.5"
+              }`}
+              aria-label="Открыть профиль пользователя"
+            >
+              <UserCircle size={19} weight="light" className="shrink-0 text-[#b89a61]" />
+              {!collapsed && (
+                <span className="min-w-0 flex-1 truncate text-xs">
+                  {userName.trim() || "Профиль пользователя"}
+                </span>
+              )}
+            </button>
+          </TooltipTrigger>
+          {collapsed && <TooltipContent side="right">Профиль пользователя</TooltipContent>}
+        </Tooltip>
         <div className={`mt-3 border-t border-[#242424] pt-3 ${collapsed ? "text-center" : ""}`}>
           {collapsed ? (
             <Tooltip>
@@ -160,6 +183,9 @@ export function Sidebar({
               </div>
               <div className="mt-1 flex items-center justify-between text-[9px] tracking-[0.14em] text-[#716a5d]">
                 <span>NULLXES · ORBITAL AI</span>
+              </div>
+              <div className="mt-2 text-[9px] tracking-[0.12em] text-[#625e55]">
+                © 2026 NULLXES
               </div>
             </>
           )}

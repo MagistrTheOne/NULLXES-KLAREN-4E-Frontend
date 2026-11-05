@@ -1,7 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { List } from "@phosphor-icons/react";
 import { Sidebar } from "@/components/navigation/sidebar";
 import { ChatWorkspace } from "@/components/chat/chat-workspace";
@@ -22,12 +22,17 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
-import { MockChatProvider, type ChatProvider } from "@/lib/chat/chat-provider";
-import { createDemoData } from "@/lib/chat/demo-data";
+import { streamChatResponse } from "@/lib/chat/chat-client";
+import {
+  MAX_CHAT_HISTORY_LENGTH,
+  MAX_CHAT_MESSAGE_LENGTH,
+  MAX_CHAT_MESSAGES,
+} from "@/lib/chat/chat-limits";
 import {
   readWorkspaceData,
   removeWorkspaceData,
   writeWorkspaceData,
+  DEFAULT_PREFERENCES,
 } from "@/lib/storage/workspace-storage";
 import type {
   ChatMessage,
@@ -70,6 +75,14 @@ function createConversation(): Conversation {
   };
 }
 
+function createEmptyWorkspaceData(): WorkspaceData {
+  return {
+    conversations: [],
+    projects: [],
+    preferences: { ...DEFAULT_PREFERENCES },
+  };
+}
+
 function createMessage(
   role: ChatMessage["role"],
   content: string,
@@ -85,11 +98,9 @@ function createMessage(
 }
 
 export function AppShell() {
-  const [data, setData] = useState<WorkspaceData>(createDemoData);
+  const [data, setData] = useState<WorkspaceData>(createEmptyWorkspaceData);
   const [activeWorkspace, setActiveWorkspace] = useState<Workspace>("chat");
-  const [activeConversationId, setActiveConversationId] = useState<string | null>(
-    () => createDemoData().conversations[0]?.id ?? null,
-  );
+  const [activeConversationId, setActiveConversationId] = useState<string | null>(null);
   const [pendingConversationIds, setPendingConversationIds] = useState<Set<string>>(
     () => new Set(),
   );
@@ -101,7 +112,15 @@ export function AppShell() {
   const [storageReady, setStorageReady] = useState(false);
   const [persistencePaused, setPersistencePaused] = useState(false);
   const [storageRecoveryRequired, setStorageRecoveryRequired] = useState(false);
-  const [chatProvider] = useState<ChatProvider>(() => new MockChatProvider());
+  const chatControllers = useRef(new Map<string, AbortController>());
+
+  useEffect(() => {
+    const controllers = chatControllers.current;
+    return () => {
+      controllers.forEach((controller) => controller.abort());
+      controllers.clear();
+    };
+  }, []);
 
   useEffect(() => {
     try {
@@ -172,40 +191,116 @@ export function AppShell() {
     setWorkspaceNotice("");
   }
 
-  function requestReply(
+  async function requestReply(
     conversationId: string,
     prompt: string,
     history: ChatMessage[],
   ) {
+    const controller = new AbortController();
+    const reply = createMessage("assistant", "");
+    let content = "";
+    chatControllers.current.set(conversationId, controller);
     setPendingConversationIds((current) => new Set(current).add(conversationId));
-    void chatProvider
-      .reply({ message: prompt, history })
-      .then((content) => {
-        const reply = createMessage("assistant", content);
+    setData((current) => ({
+      ...current,
+      conversations: current.conversations.map((conversation) =>
+        conversation.id === conversationId
+          ? { ...conversation, messages: [...conversation.messages, reply] }
+          : conversation,
+      ),
+    }));
+
+    try {
+      const requestMessages: { role: ChatMessage["role"]; content: string }[] = [];
+      let historyLength = 0;
+      for (let index = history.length - 1; index >= 0; index -= 1) {
+        const message = history[index];
+        if (!message) continue;
+        let content =
+          index === history.length - 1 && message.role === "user"
+            ? prompt
+            : message.content;
+        if (content.length > MAX_CHAT_MESSAGE_LENGTH) {
+          content = content.slice(-MAX_CHAT_MESSAGE_LENGTH);
+        }
+        if (
+          requestMessages.length >= MAX_CHAT_MESSAGES ||
+          historyLength + content.length > MAX_CHAT_HISTORY_LENGTH
+        ) {
+          break;
+        }
+        requestMessages.unshift({ role: message.role, content });
+        historyLength += content.length;
+      }
+      await streamChatResponse(requestMessages, {
+        signal: controller.signal,
+        personalization: {
+          userName: data.preferences.userName,
+          userContext: data.preferences.userContext,
+          sharpness: data.preferences.sharpness,
+          roleplayEnabled: data.preferences.roleplayEnabled,
+          adultThemesEnabled: data.preferences.adultThemesEnabled,
+          codingModeEnabled: data.preferences.codingModeEnabled,
+          codingStyle: data.preferences.codingStyle,
+        },
+        onDelta: (delta) => {
+          content += delta;
+          const updatedAt = new Date().toISOString();
+          setData((current) => ({
+            ...current,
+            conversations: current.conversations.map((conversation) =>
+              conversation.id === conversationId
+                ? {
+                    ...conversation,
+                    updatedAt,
+                    messages: conversation.messages.map((message) =>
+                      message.id === reply.id
+                        ? { ...message, content: content, createdAt: updatedAt }
+                        : message,
+                    ),
+                  }
+                : conversation,
+            ),
+          }));
+        },
+      });
+      if (!content) throw new Error("The provider returned an empty response.");
+    } catch (error) {
+      if (error instanceof Error && error.name === "AbortError") {
+        if (!content) {
+          setData((current) => ({
+            ...current,
+            conversations: current.conversations.map((conversation) =>
+              conversation.id === conversationId
+                ? { ...conversation, messages: conversation.messages.filter((message) => message.id !== reply.id) }
+                : conversation,
+            ),
+          }));
+        }
+      } else {
         setData((current) => ({
           ...current,
           conversations: current.conversations.map((conversation) =>
             conversation.id === conversationId
-              ? {
-                  ...conversation,
-                  updatedAt: reply.createdAt,
-                  messages: [...conversation.messages, reply],
-                }
+              ? { ...conversation, messages: conversation.messages.filter((message) => message.id !== reply.id) }
               : conversation,
-          ).sort((left, right) => right.updatedAt.localeCompare(left.updatedAt)),
+          ),
         }));
-      })
-      .catch((error: unknown) => {
-        console.error("Unable to send conversation message.", error);
         setWorkspaceNotice("Не удалось отправить сообщение. Повторите попытку.");
-      })
-      .finally(() => {
-        setPendingConversationIds((current) => {
-          const next = new Set(current);
-          next.delete(conversationId);
-          return next;
-        });
+      }
+    } finally {
+      chatControllers.current.delete(conversationId);
+      setPendingConversationIds((current) => {
+        const next = new Set(current);
+        next.delete(conversationId);
+        return next;
       });
+    }
+  }
+
+  function cancelReply() {
+    if (!activeConversationId) return;
+    chatControllers.current.get(activeConversationId)?.abort();
   }
 
   function sendMessage(text: string, attachments: LocalAttachment[]) {
@@ -215,7 +310,9 @@ export function AppShell() {
     const conversation = existingConversation ?? createConversation();
     if (!existingConversation) setActiveConversationId(conversation.id);
 
-    const prompt = text || "Пользователь отправил вложение.";
+    const prompt =
+      text ||
+      attachments.map((attachment) => `Вложение: ${attachment.name}`).join("\n").slice(0, MAX_CHAT_MESSAGE_LENGTH);
     const userMessage = createMessage("user", text, attachments);
     const messageCount = conversation.messages.filter((message) => message.role === "user").length;
     const nextTitle =
@@ -240,7 +337,7 @@ export function AppShell() {
 
     setWorkspaceNotice("");
 
-    requestReply(conversation.id, prompt, updatedConversation.messages);
+    void requestReply(conversation.id, prompt, updatedConversation.messages);
   }
 
   function regenerateReply() {
@@ -260,14 +357,26 @@ export function AppShell() {
           : conversation,
       ),
     }));
-    requestReply(activeConversation.id, lastUserMessage.content || "Пользователь отправил вложение.", history);
+    void requestReply(
+      activeConversation.id,
+      lastUserMessage.content || activeConversation.messages.at(-2)?.attachments.map((item) => `Вложение: ${item.name}`).join("\n") || "",
+      history,
+    );
   }
 
-  function updatePreference(key: keyof Preferences, value: boolean) {
+  function updatePreference<K extends keyof Preferences>(
+    key: K,
+    value: Preferences[K],
+  ) {
     setData((current) => ({
       ...current,
       preferences: { ...current.preferences, [key]: value },
     }));
+  }
+
+  function startCodingMode() {
+    updatePreference("codingModeEnabled", true);
+    newChat();
   }
 
   function openNameDialog(entity: NameTarget["entity"], id?: string) {
@@ -346,9 +455,8 @@ export function AppShell() {
     try {
       if (storageRecoveryRequired) {
         removeWorkspaceData();
-        const demoData = createDemoData();
-        setData(demoData);
-        setActiveConversationId(demoData.conversations[0]?.id ?? null);
+        setData(createEmptyWorkspaceData());
+        setActiveConversationId(null);
       }
       setStorageRecoveryRequired(false);
       setStorageNotice("");
@@ -376,6 +484,7 @@ export function AppShell() {
         activeWorkspace={activeWorkspace}
         collapsed={data.preferences.sidebarCollapsed && !mobileSidebarOpen}
         conversationCount={data.conversations.length}
+        userName={data.preferences.userName}
         onCollapse={() => updatePreference("sidebarCollapsed", !data.preferences.sidebarCollapsed)}
         onNavigate={navigate}
         onNewChat={newChat}
@@ -443,10 +552,12 @@ export function AppShell() {
             portraitVisible={data.preferences.portraitVisible}
             enterToSend={data.preferences.enterToSend}
             reducedMotion={data.preferences.reducedMotion}
+            renderMarkdown={data.preferences.renderMarkdown}
             onNewChat={newChat}
             onRename={(conversation) => openNameDialog("conversation", conversation.id)}
             onTogglePortrait={() => updatePreference("portraitVisible", !data.preferences.portraitVisible)}
             onSend={sendMessage}
+            onCancel={cancelReply}
             onRegenerate={regenerateReply}
             onCopyError={setWorkspaceNotice}
             onToggleMobileSidebar={() => setMobileSidebarOpen((open) => !open)}
@@ -457,7 +568,7 @@ export function AppShell() {
               title={workspaceTitles[activeWorkspace]}
               subtitle={
                 activeWorkspace === "model"
-                  ? "NULLXES / INTELLIGENCE SYSTEMS"
+                  ? "KLAREN 4E"
                   : "NULLXES · KLAREN 4E"
               }
               onOpenMenu={() => setMobileSidebarOpen((open) => !open)}
@@ -481,6 +592,7 @@ export function AppShell() {
                 onOpenChat={newChat}
                 onOpenConversations={() => navigate("conversations")}
                 onOpenProjects={() => navigate("projects")}
+                onStartCoding={startCodingMode}
               />
             )}
             {activeWorkspace === "projects" && (
