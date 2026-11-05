@@ -722,6 +722,7 @@ export function AppShell({ account }: AppShellProps) {
 
         {activeWorkspace === "chat" ? (
           <ChatWorkspace
+            accountName={account.name?.trim() || account.email.split("@")[0] || "Пользователь"}
             conversation={activeConversation}
             isTyping={
               activeConversationId !== null &&
