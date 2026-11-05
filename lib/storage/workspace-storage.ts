@@ -9,6 +9,7 @@ export const DEFAULT_PREFERENCES: Preferences = {
   enterToSend: true,
   userName: "",
   userContext: "",
+  pinnedMemories: [],
   sharpness: "wry",
   roleplayEnabled: false,
   adultThemesEnabled: false,
