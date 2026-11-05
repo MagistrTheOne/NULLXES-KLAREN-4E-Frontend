@@ -163,7 +163,7 @@ async function handleMessage(message: TMessage) {
   else await telegram("sendMessage", {
     chat_id: message.chat.id, business_connection_id: message.business_connection_id, text: answer,
   });
-  contexts.set(key, [...history, { role: "user", content: utterance }, { role: "assistant", content: answer }].slice(-16));
+  contexts.set(key, [...history, { role: "user" as const, content: utterance }, { role: "assistant" as const, content: answer }].slice(-16));
   if (contexts.size > 100) contexts.clear();
 }
 
