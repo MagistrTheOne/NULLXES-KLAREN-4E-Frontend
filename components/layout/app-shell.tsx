@@ -444,6 +444,28 @@ export function AppShell({ account }: AppShellProps) {
     );
   }
 
+  function branchConversation(messageId: string) {
+    if (!activeConversation || pendingConversationIds.has(activeConversation.id)) return;
+    const position = activeConversation.messages.findIndex((message) => message.id === messageId);
+    if (position < 0) return;
+    const now = new Date().toISOString();
+    const branched: Conversation = {
+      id: createId(),
+      title: `${activeConversation.title.slice(0, 110)} · ответвление`,
+      createdAt: now,
+      updatedAt: now,
+      projectId: activeConversation.projectId,
+      messages: activeConversation.messages.slice(0, position + 1).map((message) => ({
+        ...message,
+        id: createId(),
+        attachments: message.attachments.map((attachment) => ({ ...attachment, id: createId() })),
+      })),
+    };
+    setData((current) => ({ ...current, conversations: [branched, ...current.conversations] }));
+    setActiveConversationId(branched.id);
+    setWorkspaceNotice("");
+  }
+
   function updatePreference<K extends keyof Preferences>(
     key: K,
     value: Preferences[K],
@@ -679,6 +701,7 @@ export function AppShell({ account }: AppShellProps) {
             onSend={sendMessage}
             onCancel={cancelReply}
             onRegenerate={regenerateReply}
+            onBranch={branchConversation}
             onCopyError={setWorkspaceNotice}
             onToggleMobileSidebar={() => setMobileSidebarOpen((open) => !open)}
             searchTargetMessageId={searchTargetMessageId}
