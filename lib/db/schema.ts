@@ -69,3 +69,28 @@ export const workspaceMessages = pgTable(
     }).onDelete("cascade"),
   ],
 );
+
+
+/** Telegram messages are isolated from full-workspace PUT replacement. */
+export const telegramLinks = pgTable("klaren_telegram_links", {
+  userId: text("user_id").primaryKey(),
+  telegramUserId: text("telegram_user_id").unique(),
+  codeHash: text("code_hash"),
+  expiresAt: timestamp("expires_at", { withTimezone: true, mode: "string" }),
+  updatedAt: timestamp("updated_at", { withTimezone: true, mode: "string" }).notNull().defaultNow(),
+});
+
+export const telegramMessages = pgTable("klaren_telegram_messages", {
+  id: text("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  chatId: text("chat_id").notNull(),
+  businessConnectionId: text("business_connection_id").notNull().default(""),
+  role: text("role").$type<ChatMessage["role"]>().notNull(),
+  content: text("content").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).notNull().defaultNow(),
+});
+
+export const telegramUpdates = pgTable("klaren_telegram_updates", {
+  updateId: text("update_id").primaryKey(),
+  createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).notNull().defaultNow(),
+});
