@@ -525,3 +525,52 @@
   .landing-hero-copy > *, .landing-reveal-pending, .landing-revealed { animation: none !important; opacity: 1 !important; transform: none !important; }
   .landing-nav a::after, .landing-capability, .landing-capability-mark, .landing-button { transition: none !important; }
 }
+
+/* Full-bleed responsive landing: preserve the approved 16:9 hero composition. */
+.landing-shell { width: 100%; max-width: none; }
+.landing-shell > section, .landing-shell > footer { width: 100%; max-width: none; }
+.landing-product, .landing-section, .landing-company, .landing-contact, .landing-roadmap {
+  padding-inline: clamp(24px, 5.75vw, 112px);
+}
+.landing-technology { padding-inline: clamp(24px, 5.75vw, 112px); }
+.landing-product { grid-template-columns: minmax(0, 1.12fr) minmax(0, .88fr); gap: clamp(32px, 6vw, 110px); }
+.landing-product-copy { max-width: 760px; }
+.landing-section { grid-template-columns: minmax(0, .9fr) minmax(0, 1.1fr); gap: clamp(36px, 5vw, 96px); }
+.landing-technology { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: clamp(32px, 6vw, 120px); }
+.landing-company-main { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: clamp(32px, 6vw, 110px); }
+.landing-roadmap { grid-template-columns: minmax(0, .9fr) minmax(0, 1.1fr); gap: 35px clamp(32px, 6vw, 110px); }
+.landing-hero { width: 100%; }
+.landing-hero-copy { width: min(540px, 48%); }
+.landing-product > *, .landing-section > *, .landing-company-main > *, .landing-technology > *, .landing-roadmap > * { min-width: 0; }
+@media (min-width: 1900px) {
+  .landing-hero { padding-left: clamp(110px, 5.75vw, 160px); }
+  .landing-hero-copy { width: min(600px, 44%); }
+}
+@media (max-width: 1100px) {
+  .landing-product, .landing-section, .landing-company-main, .landing-roadmap, .landing-technology {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 32px;
+  }
+  .landing-roadmap-close, .landing-roadmap-note { grid-column: 1; }
+  .landing-product-copy, .landing-about-copy { max-width: 780px; }
+  .landing-hero-copy { width: min(510px, 54%); }
+}
+@media (max-width: 760px) {
+  .landing-product, .landing-section, .landing-company, .landing-contact, .landing-roadmap, .landing-technology {
+    padding-inline: clamp(20px, 5vw, 34px);
+    padding-block: clamp(68px, 11vw, 105px);
+  }
+  .landing-hero { min-height: max(740px, 100svh); padding-inline: clamp(19px, 5vw, 34px); }
+  .landing-hero-copy { width: min(100%, 570px); }
+  .landing-product h2, .landing-section h2, .landing-company h2, .landing-technology h2 {
+    font-size: clamp(36px, 8.5vw, 64px);
+  }
+  .landing-capability { grid-template-columns: minmax(0, 1fr); }
+  .landing-footer { padding-inline: clamp(20px, 5vw, 34px); }
+}
+@media (max-width: 420px) {
+  .landing-hero h1 { font-size: clamp(44px, 12vw, 60px); }
+  .landing-hero-line { font-size: clamp(19px, 5vw, 24px); }
+  .landing-hero-actions { width: 100%; }
+  .landing-hero-actions .landing-button { justify-content: center; }
+}
