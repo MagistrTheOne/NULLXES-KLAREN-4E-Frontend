@@ -101,7 +101,7 @@ async function replyToMessage(updateId: string, message: TelegramMessage, busine
     sharpness: preferences.sharpness,
     userName: preferences.userName,
     userContext: preferences.userContext,
-    pinnedMemories: preferences.pinnedMemories,
+    pinnedMemories: preferences.pinnedMemories.map((entry) => entry.text),
     projectContext: "",
     roleplayEnabled: preferences.roleplayEnabled,
     adultThemesEnabled: preferences.adultThemesEnabled,
