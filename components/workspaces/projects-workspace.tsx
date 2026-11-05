@@ -14,6 +14,9 @@ interface ProjectsWorkspaceProps {
   projects: Project[];
   conversations: Conversation[];
   onCreate: () => void;
+  projectContexts: Record<string, string>;
+  onUpdateContext: (projectId: string, value: string) => void;
+  onNewProjectChat: (projectId: string) => void;
   onOpenConversation: (id: string) => void;
   onRename: (project: Project) => void;
   onDelete: (project: Project) => void;
@@ -23,6 +26,9 @@ export function ProjectsWorkspace({
   projects,
   conversations,
   onCreate,
+  projectContexts,
+  onUpdateContext,
+  onNewProjectChat,
   onOpenConversation,
   onRename,
   onDelete,
@@ -76,6 +82,21 @@ export function ProjectsWorkspace({
                     <Button variant="ghost" size="icon-sm" aria-label="Удалить проект" onClick={() => onDelete(project)} className="text-[#777] hover:text-[#e6a3a3]">
                       <Trash size={16} />
                     </Button>
+                  </div>
+                  <div className="mt-4 border-t border-[#242424] pt-4">
+                    <label htmlFor={`project-context-${project.id}`} className="block text-[11px] font-medium text-[#c5b28d]">КОНТЕКСТ ПРОЕКТА</label>
+                    <textarea
+                      id={`project-context-${project.id}`}
+                      value={projectContexts[project.id] ?? ""}
+                      maxLength={1200}
+                      onChange={(event) => onUpdateContext(project.id, event.target.value)}
+                      placeholder="Цель проекта, важные сведения и ограничения"
+                      className="mt-2 min-h-24 w-full resize-y rounded-md border border-[#302d27] bg-[#0b0b0b] p-3 text-xs leading-5 text-[#dedbd5] outline-none focus-visible:border-[#907348]"
+                    />
+                    <div className="mt-2 flex items-center justify-between">
+                      <span className="text-[10px] text-[#777]">Применяется к чатам проекта</span>
+                      <button type="button" onClick={() => onNewProjectChat(project.id)} className="text-xs text-[#c6a46a] hover:text-[#ecd2a1]">+ Новый чат</button>
+                    </div>
                   </div>
                   {projectConversations.length > 0 ? (
                     <ul className="mt-4 divide-y divide-[#242424] border-t border-[#242424]">
