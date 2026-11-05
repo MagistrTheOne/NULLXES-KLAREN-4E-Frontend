@@ -141,7 +141,7 @@ export async function POST(request: Request): Promise<Response> {
           adultThemesEnabled: false,
           codingModeEnabled: false,
           codingStyle: "balanced",
-        }, authenticatedName);
+        }, authenticatedName) + (parsed.data.mode === "video" ? "\n\nГОЛОСОВОЙ ВИДЕОРЕЖИМ:\n" + KLAREN_VIDEO_PROMPT : "");
         let hasContent = false;
         const onDelta = (delta: string) => {
           if (delta && !abortController.signal.aborted) {
