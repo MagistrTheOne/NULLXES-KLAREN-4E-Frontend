@@ -36,6 +36,7 @@ export const chatRequestSchema = z
     messages: z.array(chatRequestMessageSchema).min(1).max(MAX_CHAT_MESSAGES),
     personalization: chatPersonalizationSchema.optional(),
     images: z.array(chatImageSchema).max(4).default([]),
+    files: z.array(z.object({ id: z.string().max(160), proof: z.string().max(160) })).max(4).default([]),
   })
   .superRefine(({ messages, images }, context) => {
     if (images.reduce((bytes, value) => bytes + Math.ceil((value.length - value.indexOf(",") - 1) * 0.75), 0) > 3_100_000) {

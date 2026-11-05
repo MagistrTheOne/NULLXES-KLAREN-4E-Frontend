@@ -14,6 +14,8 @@ export interface LocalAttachment {
   mediaType: string;
   previewDataUrl?: string;
   contentText?: string;
+  remoteFileId?: string;
+  remoteFileProof?: string;
 }
 
 export interface ChatMessage {

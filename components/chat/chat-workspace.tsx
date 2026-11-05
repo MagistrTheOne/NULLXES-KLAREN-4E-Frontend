@@ -101,6 +101,7 @@ export function ChatWorkspace({
   const voiceRef = useRef<SpeechRecognizer | null>(null);
   const [attachments, setAttachments] = useState<LocalAttachment[]>([]);
   const [attachmentError, setAttachmentError] = useState("");
+  const [uploading, setUploading] = useState(false);
   const [copiedMessageId, setCopiedMessageId] = useState<string | null>(null);
   const transcriptEnd = useRef<HTMLDivElement>(null);
   const anyFileInput = useRef<HTMLInputElement>(null);
@@ -188,6 +189,20 @@ export function ChatWorkspace({
     const nextAttachments: LocalAttachment[] = [];
 
     for (const file of files) {
+      if (file.type === "application/pdf" || /\.pdf$/i.test(file.name)) {
+        if (file.size > 5_000_000) { setAttachmentError("PDF до 5 МБ."); return; }
+        setUploading(true);
+        try {
+          const body = new FormData(); body.append("file", file);
+          const response = await fetch("/api/chat/files", { method: "POST", body });
+          if (!response.ok) throw new Error("upload failed");
+          const uploaded = await response.json() as { id: string; proof: string };
+          if (!uploaded.id || !uploaded.proof) throw new Error("invalid upload");
+          nextAttachments.push({ id: crypto.randomUUID(), name: file.name, mediaType: "application/pdf", remoteFileId: uploaded.id, remoteFileProof: uploaded.proof });
+        } catch { setAttachmentError("Не удалось загрузить PDF. Повторите попытку."); return; }
+        finally { setUploading(false); }
+        continue;
+      }
       if (/^image\/(png|jpeg)$/.test(file.type)) {
         if (file.size > 2_000_000 || totalImageBytes + file.size > 3_000_000) {
           setAttachmentError("Файл слишком большой. Размер одного изображения — до 2 МБ, общий размер — до 3 МБ.");
@@ -209,7 +224,7 @@ export function ChatWorkspace({
       } else {
         const isText = /\.(txt|md|json|csv|ts|tsx|js|jsx|py|html|css|sql|xml|yaml|yml|sh|log)$/i.test(file.name);
         if (!isText) {
-          setAttachmentError("Поддерживаются текстовые файлы и PNG и JPEG. PDF пока не анализируется.");
+          setAttachmentError("Поддерживаются текстовые файлы, PNG, JPEG и PDF.");
           return;
         }
         if (file.size > 32_000) {
@@ -235,8 +250,8 @@ export function ChatWorkspace({
   }
 
   function submitMessage(text = draft) {
-    if (isTyping || (!text.trim() && attachments.length === 0)) return;
-    if (!text.trim() && !attachments.some((attachment) => attachment.contentText?.trim() || attachment.previewDataUrl)) return;
+    if (isTyping || uploading || (!text.trim() && attachments.length === 0)) return;
+    if (!text.trim() && !attachments.some((attachment) => attachment.contentText?.trim() || attachment.previewDataUrl || attachment.remoteFileId)) return;
     onSend(text.trim(), attachments);
     setDraft("");
     setAttachments([]);
@@ -393,17 +408,18 @@ export function ChatWorkspace({
             <p role="alert" className="px-3 pb-1 text-xs text-[#e1a0a0]">{attachmentError}</p>
           )}
           {attachments.some((attachment) => attachment.previewDataUrl && !attachment.contentText) && (
-            <p className="px-3 pb-1 text-[10px] text-[#969696]">Изображения пока сохраняются для предпросмотра, но не анализируются Кларен.</p>
+            <p className="px-3 pb-1 text-[10px] text-[#969696]">Изображения передаются модели. Проверяй её ответы.</p>
           )}
           <div className="flex items-end gap-1.5 sm:gap-2">
             <button
               type="button"
               onClick={() => anyFileInput.current?.click()}
-              aria-label="Добавить текстовый файл или изображение для предпросмотра"
+              aria-label="Добавить файл или изображение"
               className="mb-0.5 flex size-10 shrink-0 items-center justify-center rounded-full border border-[#39352e] text-[#c7bca9] transition-colors hover:border-[#75603b] hover:text-[#e3c88e]"
             >
               <Paperclip size={18} />
             </button>
+            {uploading && <span role="status" className="text-xs text-[#c6a46a]">Загрузка PDF…</span>}
             <input ref={anyFileInput} type="file" multiple className="hidden" onChange={(event) => void handleFiles(event)} />
             <input ref={imageInput} type="file" accept="image/png,image/jpeg" multiple className="hidden" onChange={(event) => void handleFiles(event)} />
             <button type="button" onClick={toggleVoiceInput} disabled={!voiceSupported || isTyping} aria-label={voiceRecording ? "Остановить диктовку" : "Голосовой ввод"} title={voiceSupported ? "Распознать речь в текст (отправка вручную)" : "Браузер не поддерживает распознавание речи"} className={`mb-0.5 flex size-9 shrink-0 items-center justify-center rounded-full transition-colors disabled:opacity-30 ${voiceRecording ? "bg-[#382b1d] text-[#e9b56d]" : "text-[#a6a6a6] hover:bg-[#242424] hover:text-[#e1c78f]"}`}>

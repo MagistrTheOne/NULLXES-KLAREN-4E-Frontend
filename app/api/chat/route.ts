@@ -8,6 +8,7 @@ import { buildChatInstructions } from "@/lib/chat/server/chat-instructions";
 import { ChatProviderError } from "@/lib/chat/server/provider-error";
 import { XAIChatAdapter } from "@/lib/chat/server/xai-adapter";
 import { getAuthenticatedUser } from "@/lib/auth/server";
+import { verifyFileProof } from "@/lib/chat/server/file-proof";
 import { readLimitedBody } from "@/lib/http/read-limited-body";
 
 const encoder = new TextEncoder();
@@ -112,6 +113,12 @@ export async function POST(request: Request): Promise<Response> {
     return jsonError("Проверьте текст сообщения и повторите попытку.", 400);
   }
 
+  const verifiedFiles: string[] = [];
+  for (const file of parsed.data.files) {
+    if (!verifyFileProof(userId, file.id, file.proof)) return jsonError("Недоступное вложение.", 403);
+    verifiedFiles.push(file.id);
+  }
+
   const abortController = new AbortController();
   const abortRequest = () => abortController.abort(request.signal.reason);
   if (request.signal.aborted) abortRequest();
@@ -143,6 +150,7 @@ export async function POST(request: Request): Promise<Response> {
           await new XAIChatAdapter().stream({
             messages,
             images: parsed.data.images,
+            files: verifiedFiles,
             instructions,
             signal: abortController.signal,
             onDelta,

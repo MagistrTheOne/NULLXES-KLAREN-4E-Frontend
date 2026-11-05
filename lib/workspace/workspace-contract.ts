@@ -24,6 +24,8 @@ const attachmentSchema = z.object({
   mediaType: z.string().min(1).max(120),
   previewDataUrl: z.string().max(4_000_000).optional(),
   contentText: z.string().max(3_000).optional(),
+  remoteFileId: z.string().max(160).optional(),
+  remoteFileProof: z.string().max(160).optional(),
 });
 
 const messageSchema = z.object({

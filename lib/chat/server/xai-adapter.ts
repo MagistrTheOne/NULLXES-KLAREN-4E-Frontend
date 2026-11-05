@@ -7,7 +7,7 @@ const XAI_BASE_URL = "https://api.x.ai/v1";
 const DEFAULT_XAI_MODEL = "grok-4.7";
 
 export class XAIChatAdapter implements ChatAdapter {
-  async stream({ messages, images = [], instructions, signal, onDelta }: Parameters<ChatAdapter["stream"]>[0]): Promise<void> {
+  async stream({ messages, images = [], files = [], instructions, signal, onDelta }: Parameters<ChatAdapter["stream"]>[0]): Promise<void> {
     const apiKey = process.env.XAI_API_KEY;
     const model = process.env.XAI_MODEL?.trim() || DEFAULT_XAI_MODEL;
     if (!apiKey) {
@@ -33,10 +33,11 @@ export class XAIChatAdapter implements ChatAdapter {
           instructions,
           input: messages.map(({ role, content }, index) => ({
             role,
-            content: role === "user" && index === messages.length - 1 && images.length
+            content: role === "user" && index === messages.length - 1 && (images.length || files.length)
               ? [
                   { type: "input_text" as const, text: content },
                   ...images.map((image_url) => ({ type: "input_image" as const, image_url, detail: "auto" as const })),
+                  ...files.map((file_id) => ({ type: "input_file" as const, file_id })),
                 ]
               : content,
           })),

@@ -334,7 +334,11 @@ export function AppShell({ account }: AppShellProps) {
       const images = lastUser?.attachments
         .filter((attachment) => attachment.previewDataUrl && /^data:image\/(png|jpeg);base64,/.test(attachment.previewDataUrl))
         .map((attachment) => attachment.previewDataUrl!) ?? [];
+      const files = lastUser?.attachments
+        .filter((attachment) => attachment.remoteFileId && attachment.remoteFileProof)
+        .map((attachment) => ({ id: attachment.remoteFileId!, proof: attachment.remoteFileProof! })) ?? [];
       await streamChatResponse(requestMessages, {
+        files,
         images,
         signal: controller.signal,
         personalization: {
@@ -418,7 +422,7 @@ export function AppShell({ account }: AppShellProps) {
     const readableFiles = attachments.filter((attachment) => attachment.contentText);
     const contentFromFiles = readableFiles.map((file) => `[Файл: ${file.name}]\n${file.contentText}\n[/Файл]`).join("\n");
     const prompt = (text.trim() + (contentFromFiles ? "\n\nПрикреплённые текстовые данные:\n" + contentFromFiles : "")).slice(0, MAX_CHAT_MESSAGE_LENGTH);
-    if (!prompt.trim() && !attachments.some((attachment) => attachment.previewDataUrl)) {
+    if (!prompt.trim() && !attachments.some((attachment) => attachment.previewDataUrl || attachment.remoteFileId)) {
       setWorkspaceNotice("Добавь текст или вложение.");
       return;
     }
@@ -446,7 +450,7 @@ export function AppShell({ account }: AppShellProps) {
 
     setWorkspaceNotice("");
 
-    void requestReply(conversation.id, prompt.trim() || "Опиши прикреплённое изображение.", updatedConversation.messages);
+    void requestReply(conversation.id, prompt.trim() || "Проанализируй прикреплённый файл.", updatedConversation.messages);
   }
 
   function regenerateReply() {
@@ -468,7 +472,7 @@ export function AppShell({ account }: AppShellProps) {
     }));
     void requestReply(
       activeConversation.id,
-      (lastUserMessage.content + "\n\n" + lastUserMessage.attachments.filter((attachment) => attachment.contentText).map((attachment) => `[Файл: ${attachment.name}]\n${attachment.contentText}\n[/Файл]`).join("\n")).slice(0, MAX_CHAT_MESSAGE_LENGTH).trim() || "Опиши прикреплённое изображение.",
+      (lastUserMessage.content + "\n\n" + lastUserMessage.attachments.filter((attachment) => attachment.contentText).map((attachment) => `[Файл: ${attachment.name}]\n${attachment.contentText}\n[/Файл]`).join("\n")).slice(0, MAX_CHAT_MESSAGE_LENGTH).trim() || "Проанализируй прикреплённый файл.",
       history,
     );
   }

@@ -13,12 +13,13 @@ export async function streamChatResponse(
     onDelta: (delta: string) => void;
     personalization: ChatPersonalization;
     images?: string[];
+    files?: { id: string; proof: string }[];
   },
 ): Promise<void> {
   const response = await fetch("/api/chat", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ messages, personalization: options.personalization, images: options.images ?? [] }),
+    body: JSON.stringify({ messages, personalization: options.personalization, images: options.images ?? [], files: options.files ?? [] }),
     signal: options.signal,
   });
 
