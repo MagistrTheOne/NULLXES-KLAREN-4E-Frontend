@@ -334,9 +334,11 @@ export function AppShell({ account }: AppShellProps) {
       const images = lastUser?.attachments
         .filter((attachment) => attachment.previewDataUrl && /^data:image\/(png|jpeg);base64,/.test(attachment.previewDataUrl))
         .map((attachment) => attachment.previewDataUrl!) ?? [];
-      const files = lastUser?.attachments
+      const projectId = data.conversations.find((item) => item.id === conversationId)?.projectId ?? "";
+      const projectFiles = data.preferences.projectFiles?.[projectId] ?? [];
+      const files = [...(lastUser?.attachments ?? []), ...projectFiles]
         .filter((attachment) => attachment.remoteFileId && attachment.remoteFileProof)
-        .map((attachment) => ({ id: attachment.remoteFileId!, proof: attachment.remoteFileProof! })) ?? [];
+        .map((attachment) => ({ id: attachment.remoteFileId!, proof: attachment.remoteFileProof! })).slice(0, 4);
       await streamChatResponse(requestMessages, {
         files,
         images,
@@ -345,7 +347,7 @@ export function AppShell({ account }: AppShellProps) {
           userName: data.preferences.userName,
           userContext: data.preferences.userContext,
           pinnedMemories: data.preferences.pinnedMemories.map((memory) => memory.text),
-          projectContext: data.preferences.projectContexts[data.conversations.find((item) => item.id === conversationId)?.projectId ?? ""] ?? "",
+          projectContext: [data.preferences.projectContexts[projectId] ?? "", ...projectFiles.filter((file) => file.contentText).map((file) => `[Project file: ${file.name}]\n${file.contentText}`)].join("\n\n").slice(0, 14_000),
           sharpness: data.preferences.sharpness,
           roleplayEnabled: data.preferences.roleplayEnabled,
           adultThemesEnabled: data.preferences.adultThemesEnabled,
@@ -571,6 +573,7 @@ export function AppShell({ account }: AppShellProps) {
   function deleteProject(projectId: string) {
     setData((current) => ({
       ...current,
+      preferences: { ...current.preferences, projectFiles: Object.fromEntries(Object.entries(current.preferences.projectFiles ?? {}).filter(([id]) => id !== projectId)) },
       projects: current.projects.filter((project) => project.id !== projectId),
       conversations: current.conversations.map((conversation) =>
         conversation.projectId === projectId ? { ...conversation, projectId: null } : conversation,
@@ -779,6 +782,9 @@ export function AppShell({ account }: AppShellProps) {
                 conversations={data.conversations}
                 onCreate={() => openNameDialog("project")}
                 projectContexts={data.preferences.projectContexts}
+                projectFiles={data.preferences.projectFiles ?? {}}
+                onAddFile={(projectId, file) => setData((current) => ({ ...current, preferences: { ...current.preferences, projectFiles: { ...current.preferences.projectFiles, [projectId]: [...(current.preferences.projectFiles?.[projectId] ?? []), file].slice(0, 5) } } }))}
+                onRemoveFile={(projectId, fileId) => setData((current) => ({ ...current, preferences: { ...current.preferences, projectFiles: { ...current.preferences.projectFiles, [projectId]: (current.preferences.projectFiles?.[projectId] ?? []).filter((item) => item.id !== fileId) } } }))}
                 onUpdateContext={(projectId, value) => updatePreference("projectContexts", { ...data.preferences.projectContexts, [projectId]: value })}
                 onNewProjectChat={newProjectChat}
                 onOpenConversation={openConversation}

@@ -50,6 +50,7 @@ export interface Preferences {
   userContext: string;
   pinnedMemories: { id: string; text: string }[];
   projectContexts: Record<string, string>;
+  projectFiles: Record<string, LocalAttachment[]>;
   sharpness: "balanced" | "wry" | "sharp";
   roleplayEnabled: boolean;
   adultThemesEnabled: boolean;

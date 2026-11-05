@@ -11,6 +11,7 @@ export const DEFAULT_PREFERENCES: Preferences = {
   userContext: "",
   pinnedMemories: [],
   projectContexts: {},
+  projectFiles: {},
   sharpness: "wry",
   roleplayEnabled: false,
   adultThemesEnabled: false,

@@ -10,6 +10,7 @@ const preferencesSchema = z.object({
   userContext: z.string().max(500),
   pinnedMemories: z.array(z.object({ id: z.string().min(1).max(100), text: z.string().min(1).max(240) })).max(10).default([]),
   projectContexts: z.record(z.string().max(100), z.string().max(1200)).default({}),
+  projectFiles: z.record(z.string().max(100), z.array(z.object({ id: z.string().min(1).max(100), name: z.string().min(1).max(255), mediaType: z.string().max(120), contentText: z.string().max(3000).optional(), remoteFileId: z.string().max(160).optional(), remoteFileProof: z.string().max(160).optional() })).max(5)).default({}),
   sharpness: z.enum(["balanced", "wry", "sharp"]),
   roleplayEnabled: z.boolean(),
   adultThemesEnabled: z.boolean(),
