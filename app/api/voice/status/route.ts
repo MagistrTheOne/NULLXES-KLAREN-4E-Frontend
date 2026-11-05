@@ -1,6 +1,9 @@
 import { requireVoiceUser } from "@/lib/voice/server/auth";
 import { resolveKlarenciaVoice, voiceModelId } from "@/lib/voice/server/eleven-v4";
 
+// Session cookies must be read on demand, never during build-time prerendering.
+export const dynamic = "force-dynamic";
+
 export async function GET(): Promise<Response> {
   const account = await requireVoiceUser();
   if (account instanceof Response) return account;
