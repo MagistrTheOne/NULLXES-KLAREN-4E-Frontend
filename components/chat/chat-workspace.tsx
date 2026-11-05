@@ -157,11 +157,28 @@ export function ChatWorkspace({
           return;
         }
       } else {
-        nextAttachments.push({
-          id: crypto.randomUUID(),
-          name: file.name,
-          mediaType: file.type || "application/octet-stream",
-        });
+        const isText = /\.(txt|md|json|csv|ts|tsx|js|jsx|py|html|css|sql|xml|yaml|yml|sh|log)$/i.test(file.name);
+        if (!isText) {
+          setAttachmentError("Поддерживаются текстовые файлы и изображения для предпросмотра. PDF и другие форматы пока не анализируются.");
+          return;
+        }
+        if (file.size > 32_000) {
+          setAttachmentError("Текстовый файл слишком большой. Максимум — 32 КБ.");
+          return;
+        }
+        try {
+          const contentText = (await file.text()).slice(0, 3_000);
+          if (!contentText.trim()) { setAttachmentError("Текстовый файл пустой."); return; }
+          nextAttachments.push({
+            id: crypto.randomUUID(),
+            name: file.name,
+            mediaType: file.type || "text/plain",
+            contentText,
+          });
+        } catch {
+          setAttachmentError("Не удалось прочитать текстовый файл.");
+          return;
+        }
       }
     }
     setAttachments((current) => [...current, ...nextAttachments]);
@@ -328,7 +345,7 @@ export function ChatWorkspace({
             <button
               type="button"
               onClick={() => anyFileInput.current?.click()}
-              aria-label="Добавить вложение"
+              aria-label="Добавить текстовый файл или изображение для предпросмотра"
               className="mb-0.5 flex size-10 shrink-0 items-center justify-center rounded-full border border-[#39352e] text-[#c7bca9] transition-colors hover:border-[#75603b] hover:text-[#e3c88e]"
             >
               <Paperclip size={18} />
@@ -350,7 +367,7 @@ export function ChatWorkspace({
             <button
               type="button"
               onClick={() => imageInput.current?.click()}
-              aria-label="Добавить изображение"
+              aria-label="Добавить изображение для предпросмотра (анализ изображения пока недоступен)"
               className="mb-0.5 hidden size-9 shrink-0 items-center justify-center rounded-full text-[#a6a6a6] transition-colors hover:bg-[#242424] hover:text-[#e1c78f] sm:flex"
             >
               <FileImage size={19} />
