@@ -1,6 +1,6 @@
 import "server-only";
 import { after } from "next/server";
-import { XAIChatAdapter } from "@/lib/chat/server/xai-adapter";
+import { resolveChatAdapter } from "@/lib/chat/server/resolve-chat-adapter";
 import { cleanSpokenText, resolveKlarenciaVoice } from "@/lib/voice/server/eleven-v4";
 
 type TUser = { id: number; username?: string; first_name?: string; is_bot?: boolean };
@@ -181,7 +181,7 @@ async function handleMessage(message: TMessage) {
   const abort = new AbortController();
   const timeout = setTimeout(() => abort.abort(), 45_000);
   try {
-    await stageCall("grok_generation", () => new XAIChatAdapter().stream({
+    await stageCall("grok_generation", () => resolveChatAdapter().stream({
       instructions,
       messages: [...history.slice(-16), { role: "user", content: utterance }],
       signal: abort.signal,

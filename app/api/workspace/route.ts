@@ -1,6 +1,5 @@
 import type { BatchItem } from "drizzle-orm/batch";
 import { asc, eq } from "drizzle-orm";
-import { DEFAULT_PREFERENCES } from "@/lib/storage/workspace-storage";
 import { db } from "@/lib/db";
 import {
   workspaceConversations,
@@ -10,6 +9,10 @@ import {
 } from "@/lib/db/schema";
 import { getAuthenticatedUser } from "@/lib/auth/server";
 import { readLimitedBody } from "@/lib/http/read-limited-body";
+import {
+  assembleWorkspaceResponse,
+  withTransientRetry,
+} from "@/lib/workspace/assemble-workspace-response";
 import {
   workspaceDataSchema,
   type ParsedWorkspaceData,
@@ -43,54 +46,34 @@ export async function GET(): Promise<Response> {
   if (!userId) return Response.json({ error: "Требуется вход в аккаунт." }, { status: 401 });
 
   try {
-    const [projects, conversations, messages, preferenceRows] = await Promise.all([
-      db.select().from(workspaceProjects)
-        .where(eq(workspaceProjects.userId, userId))
-        .orderBy(asc(workspaceProjects.createdAt)),
-      db.select().from(workspaceConversations)
-        .where(eq(workspaceConversations.userId, userId)),
-      db.select().from(workspaceMessages)
-        .where(eq(workspaceMessages.userId, userId))
-        .orderBy(asc(workspaceMessages.position), asc(workspaceMessages.createdAt)),
-      db.select().from(workspacePreferences)
-        .where(eq(workspacePreferences.userId, userId))
-        .limit(1),
-    ]);
+    const [projects, conversations, messages, preferenceRows] = await withTransientRetry(() =>
+      Promise.all([
+        db.select().from(workspaceProjects)
+          .where(eq(workspaceProjects.userId, userId))
+          .orderBy(asc(workspaceProjects.createdAt)),
+        db.select().from(workspaceConversations)
+          .where(eq(workspaceConversations.userId, userId)),
+        db.select().from(workspaceMessages)
+          .where(eq(workspaceMessages.userId, userId))
+          .orderBy(asc(workspaceMessages.position), asc(workspaceMessages.createdAt)),
+        db.select().from(workspacePreferences)
+          .where(eq(workspacePreferences.userId, userId))
+          .limit(1),
+      ]),
+    );
 
-    const messagesByConversation = new Map<string, typeof messages>();
-    for (const message of messages) {
-      const current = messagesByConversation.get(message.conversationId) ?? [];
-      current.push(message);
-      messagesByConversation.set(message.conversationId, current);
-    }
-
-    return Response.json({
-      projects: projects.map((project) => ({
-        id: project.id,
-        name: project.name,
-        createdAt: new Date(project.createdAt).toISOString(),
-      })),
-      conversations: conversations.map((conversation) => ({
-          id: conversation.id,
-          title: conversation.title,
-          createdAt: new Date(conversation.createdAt).toISOString(),
-          updatedAt: new Date(conversation.updatedAt).toISOString(),
-          projectId: conversation.projectId,
-          messages: (messagesByConversation.get(conversation.id) ?? []).map(
-            (message) => ({
-              id: message.id,
-              role: message.role,
-              content: message.content,
-              createdAt: new Date(message.createdAt).toISOString(),
-              attachments: message.attachments,
-            }),
-          ),
-        })).sort((left, right) => right.updatedAt.localeCompare(left.updatedAt)),
-      preferences: { ...DEFAULT_PREFERENCES, ...preferenceRows[0]?.preferences },
+    const payload = assembleWorkspaceResponse({
+      projects,
+      conversations,
+      messages,
+      preferences: preferenceRows[0]?.preferences,
     });
+
+    return Response.json(payload);
   } catch (error) {
     console.error("Workspace read failed.", {
       errorName: error instanceof Error ? error.name : "UnknownError",
+      message: error instanceof Error ? error.message : String(error),
       code: typeof error === "object" && error !== null && "code" in error && typeof error.code === "string" ? error.code : undefined,
       causeCode: error instanceof Error && error.cause && typeof error.cause === "object" && "code" in error.cause && typeof error.cause.code === "string" ? error.cause.code : undefined,
     });

@@ -2,9 +2,9 @@ import { createHash, timingSafeEqual, randomUUID } from "node:crypto";
 import { and, asc, desc, eq } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { telegramLinks, telegramMessages, telegramUpdates, workspacePreferences } from "@/lib/db/schema";
-import { DEFAULT_PREFERENCES } from "@/lib/storage/workspace-storage";
+import { DEFAULT_PREFERENCES } from "@/lib/workspace/defaults";
 import { buildChatInstructions } from "@/lib/chat/server/chat-instructions";
-import { XAIChatAdapter } from "@/lib/chat/server/xai-adapter";
+import { resolveChatAdapter } from "@/lib/chat/server/resolve-chat-adapter";
 import { readLimitedBody } from "@/lib/http/read-limited-body";
 import { handleBusinessTestUpdate } from "@/lib/telegram/business-test";
 
@@ -115,7 +115,7 @@ async function replyToMessage(updateId: string, message: TelegramMessage, busine
   const cancel = new AbortController();
   const timer = setTimeout(() => cancel.abort(), 35_000);
   try {
-    await new XAIChatAdapter().stream({
+    await resolveChatAdapter().stream({
       messages: history,
       instructions,
       signal: cancel.signal,

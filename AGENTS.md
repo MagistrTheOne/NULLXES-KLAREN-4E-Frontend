@@ -419,7 +419,7 @@ Suggested structure:
 `src/components/navigation/` — sidebar
 `src/components/settings/` — preferences
 `src/lib/chat/` — chat provider interface and mock provider
-`src/lib/storage/` — local persistence
+`lib/workspace/` — workspace defaults and export helpers; persistence via `/api/workspace` and Neon PostgreSQL
 `src/types/` — shared contracts
 
 Use reusable components, typed interfaces and clear separation of concerns.

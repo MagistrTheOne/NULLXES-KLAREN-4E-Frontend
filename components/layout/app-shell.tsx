@@ -15,6 +15,7 @@ import { SettingsWorkspace } from "@/components/workspaces/settings-workspace";
 import { GlobalSearch } from "@/components/workspaces/global-search";
 import { exportAllWorkspaceData } from "@/lib/workspace/export-data";
 import { ToolsWorkspace } from "@/components/workspaces/tools-workspace";
+import { CodingAgentWorkspace } from "@/components/workspaces/coding-agent-workspace";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -34,8 +35,9 @@ import {
   MAX_CHAT_MESSAGES,
 } from "@/lib/chat/chat-limits";
 import {
-  DEFAULT_PREFERENCES,
-} from "@/lib/storage/workspace-storage";
+  createEmptyWorkspaceData,
+  LEGACY_LOCAL_STORAGE_KEY,
+} from "@/lib/workspace/defaults";
 import { workspaceDataSchema } from "@/lib/workspace/workspace-contract";
 import type {
   ChatMessage,
@@ -65,6 +67,7 @@ const workspaceTitles: Record<Exclude<Workspace, "chat">, string> = {
   conversations: "Диалоги",
   model: "Модель",
   tools: "Инструменты",
+  coding: "Coding Agent",
   projects: "Проекты",
   settings: "Настройки",
 };
@@ -85,18 +88,11 @@ function createConversation(): Conversation {
   };
 }
 
-function createEmptyWorkspaceData(): WorkspaceData {
-  return {
-    conversations: [],
-    projects: [],
-    preferences: { ...DEFAULT_PREFERENCES },
-  };
-}
-
 function createMessage(
   role: ChatMessage["role"],
   content: string,
   attachments: LocalAttachment[] = [],
+  parts: ChatMessage["parts"] = undefined,
 ): ChatMessage {
   return {
     id: createId(),
@@ -104,6 +100,7 @@ function createMessage(
     content,
     createdAt: new Date().toISOString(),
     attachments,
+    parts,
   };
 }
 
@@ -141,6 +138,7 @@ export function AppShell({ account }: AppShellProps) {
   const chatControllers = useRef(new Map<string, AbortController>());
   const saveQueue = useRef<Promise<void>>(Promise.resolve());
   const savedSnapshot = useRef("");
+  const sidebarCollapsedBeforeCallRef = useRef<boolean | null>(null);
 
   useEffect(() => {
     const controllers = chatControllers.current;
@@ -155,12 +153,23 @@ export function AppShell({ account }: AppShellProps) {
 
     async function loadWorkspace() {
       try {
-        const response = await fetch("/api/workspace", { cache: "no-store" });
-        if (response.status === 401) { router.replace("/auth/login?returnTo=%2Fapp"); return; }
-        if (!response.ok) {
-          const body = await response.json().catch(() => null) as { error?: unknown } | null;
-          const message = typeof body?.error === "string" ? body.error : `HTTP ${response.status}`;
-          throw new Error(`Workspace GET failed (${response.status}): ${message}`);
+        let response: Response | null = null;
+        let lastStatus = 0;
+        for (let attempt = 0; attempt < 3; attempt++) {
+          response = await fetch("/api/workspace", { cache: "no-store" });
+          lastStatus = response.status;
+          if (response.status === 401) {
+            router.replace("/auth/login?returnTo=%2Fapp");
+            return;
+          }
+          if (response.ok) break;
+          if (response.status < 500 || attempt >= 2) break;
+          await new Promise((resolve) => setTimeout(resolve, 450 * (attempt + 1)));
+        }
+        if (!response?.ok) {
+          const body = await response?.json().catch(() => null) as { error?: unknown } | null;
+          const message = typeof body?.error === "string" ? body.error : `HTTP ${lastStatus}`;
+          throw new Error(`Workspace GET failed (${lastStatus}): ${message}`);
         }
         const payload: unknown = await response.json();
         const parsed = workspaceDataSchema.safeParse(payload);
@@ -169,6 +178,11 @@ export function AppShell({ account }: AppShellProps) {
           throw new Error(`Workspace response schema mismatch: ${details}`);
         }
         if (cancelled) return;
+        try {
+          localStorage.removeItem(LEGACY_LOCAL_STORAGE_KEY);
+        } catch {
+          // Private browsing or disabled storage.
+        }
         savedSnapshot.current = JSON.stringify(parsed.data);
         setData(parsed.data);
         setActiveConversationId(parsed.data.conversations[0]?.id ?? null);
@@ -178,10 +192,8 @@ export function AppShell({ account }: AppShellProps) {
         setStorageReady(true);
       } catch (error) {
         if (cancelled) return;
-        console.error("Unable to load account workspace.", {
-          errorName: error instanceof Error ? error.name : "UnknownError",
-          message: error instanceof Error ? error.message : String(error),
-        });
+        const message = error instanceof Error ? error.message : String(error);
+        console.error(`Unable to load account workspace: ${message}`, error);
         setStorageNotice("Не удалось загрузить данные аккаунта. Повторите попытку.");
         setPersistencePaused(true);
         setStorageRecoveryRequired(true);
@@ -249,6 +261,35 @@ export function AppShell({ account }: AppShellProps) {
     setWorkspaceNotice("");
   }
 
+  function handleVideoCallOpenChange(open: boolean) {
+    if (open) {
+      setMobileSidebarOpen(false);
+      setData((current) => {
+        if (sidebarCollapsedBeforeCallRef.current === null) {
+          sidebarCollapsedBeforeCallRef.current = current.preferences.sidebarCollapsed;
+        }
+        if (current.preferences.sidebarCollapsed) return current;
+        return {
+          ...current,
+          preferences: { ...current.preferences, sidebarCollapsed: true },
+        };
+      });
+      return;
+    }
+
+    const previous = sidebarCollapsedBeforeCallRef.current;
+    sidebarCollapsedBeforeCallRef.current = null;
+    if (previous === null) return;
+
+    setData((current) => {
+      if (current.preferences.sidebarCollapsed === previous) return current;
+      return {
+        ...current,
+        preferences: { ...current.preferences, sidebarCollapsed: previous },
+      };
+    });
+  }
+
   function newProjectChat(projectId: string) {
     const conversation = { ...createConversation(), projectId };
     setData((current) => ({ ...current, conversations: [conversation, ...current.conversations] }));
@@ -289,8 +330,9 @@ export function AppShell({ account }: AppShellProps) {
     mode: "chat" | "video" = "chat",
   ) {
     const controller = new AbortController();
-    const reply = createMessage("assistant", "");
+    const reply = createMessage("assistant", "", [], []);
     let content = "";
+    let toolParts: NonNullable<ChatMessage["parts"]> = [];
     chatControllers.current.set(conversationId, controller);
     setPendingConversationIds((current) => new Set(current).add(conversationId));
     setData((current) => ({
@@ -369,7 +411,54 @@ export function AppShell({ account }: AppShellProps) {
                     updatedAt,
                     messages: conversation.messages.map((message) =>
                       message.id === reply.id
-                        ? { ...message, content: content, createdAt: updatedAt }
+                        ? {
+                            ...message,
+                            content,
+                            parts: toolParts.length ? toolParts : message.parts,
+                            createdAt: updatedAt,
+                          }
+                        : message,
+                    ),
+                  }
+                : conversation,
+            ),
+          }));
+        },
+        onStreamEvent: (event) => {
+          const updatedAt = new Date().toISOString();
+          if (event.type === "tool.start") {
+            toolParts = [
+              ...toolParts,
+              {
+                type: "tool",
+                tool: event.tool,
+                requestId: event.requestId,
+                status: "pending",
+              },
+            ];
+          } else if (event.type === "tool.result") {
+            toolParts = toolParts.map((part) =>
+              part.type === "tool" && part.requestId === event.requestId
+                ? { ...part, status: "ok", summary: event.summary }
+                : part,
+            );
+          } else if (event.type === "tool.error") {
+            toolParts = toolParts.map((part) =>
+              part.type === "tool" && part.requestId === event.requestId
+                ? { ...part, status: "error", errorMessage: event.message }
+                : part,
+            );
+          }
+          setData((current) => ({
+            ...current,
+            conversations: current.conversations.map((conversation) =>
+              conversation.id === conversationId
+                ? {
+                    ...conversation,
+                    updatedAt,
+                    messages: conversation.messages.map((message) =>
+                      message.id === reply.id
+                        ? { ...message, content, parts: [...toolParts], createdAt: updatedAt }
                         : message,
                     ),
                   }
@@ -516,7 +605,7 @@ export function AppShell({ account }: AppShellProps) {
 
   function startCodingMode() {
     updatePreference("codingModeEnabled", true);
-    newChat();
+    navigate("coding");
   }
 
   function openNameDialog(entity: NameTarget["entity"], id?: string) {
@@ -592,7 +681,7 @@ export function AppShell({ account }: AppShellProps) {
     setConfirmTarget(null);
   }
 
-  function recoverStorage() {
+  function retryWorkspaceLoad() {
     setStorageNotice("");
     if (storageRecoveryRequired) {
       setStorageReady(false);
@@ -634,7 +723,7 @@ export function AppShell({ account }: AppShellProps) {
           {storageRecoveryRequired && (
             <Button
               type="button"
-              onClick={recoverStorage}
+              onClick={retryWorkspaceLoad}
               className="mt-5 bg-[#c6a46a] text-[#080808] hover:bg-[#d3b77f]"
             >
               Повторить
@@ -703,10 +792,10 @@ export function AppShell({ account }: AppShellProps) {
             <Button
               size="sm"
               variant="outline"
-              onClick={recoverStorage}
+              onClick={retryWorkspaceLoad}
               className="h-7 shrink-0 border-[#655333] text-[#e5cc98] hover:bg-[#292215]"
             >
-              {storageRecoveryRequired ? "Восстановить историю" : "Повторить"}
+              {storageRecoveryRequired ? "Загрузить снова" : "Повторить"}
             </Button>
           </div>
         )}
@@ -745,6 +834,7 @@ export function AppShell({ account }: AppShellProps) {
             onToggleMobileSidebar={() => setMobileSidebarOpen((open) => !open)}
             searchTargetMessageId={searchTargetMessageId}
             onSearchTargetHandled={() => setSearchTargetMessageId(null)}
+            onVideoCallOpenChange={handleVideoCallOpenChange}
           />
         ) : (
           <>
@@ -777,7 +867,14 @@ export function AppShell({ account }: AppShellProps) {
                 onOpenConversations={() => navigate("conversations")}
                 onOpenProjects={() => navigate("projects")}
                 onStartCoding={startCodingMode}
+                onOpenCodingAgent={() => navigate("coding")}
               />
+            )}
+            {activeWorkspace === "coding" && (
+              <CodingAgentWorkspace onOpenChat={() => {
+                updatePreference("codingModeEnabled", true);
+                newChat();
+              }} />
             )}
             {activeWorkspace === "projects" && (
               <ProjectsWorkspace

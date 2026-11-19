@@ -1,13 +1,19 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { ArrowRight, BracketsCurly, ChatCircleDots, ChatsCircle, Folder } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/button";
+import type { CodingToolDefinition } from "@/lib/coding-agent/contracts";
+import {
+  CodingToolsTable,
+  type GithubCodingAgentUiMode,
+} from "@/components/workspaces/coding-tools-table";
 
-interface ToolsWorkspaceProps {
-  onOpenChat: () => void;
+interface ToolsWorkspaceProps {  onOpenChat: () => void;
   onOpenConversations: () => void;
   onOpenProjects: () => void;
   onStartCoding: () => void;
+  onOpenCodingAgent: () => void;
 }
 
 const workspaces = [
@@ -20,7 +26,7 @@ const workspaces = [
   },
   {
     title: "Режим кодинга",
-    description: "Писать, объяснять и исправлять код в выбранном стиле.",
+    description: "Coding Agent: чтение репозитория на сервере + чат с упором на код.",
     icon: BracketsCurly,
     action: "Начать кодинг",
     onOpen: "coding",
@@ -46,7 +52,32 @@ export function ToolsWorkspace({
   onOpenConversations,
   onOpenProjects,
   onStartCoding,
+  onOpenCodingAgent,
 }: ToolsWorkspaceProps) {
+  const [tools, setTools] = useState<CodingToolDefinition[]>([]);
+  const [githubMode, setGithubMode] = useState<GithubCodingAgentUiMode>("public");
+
+  useEffect(() => {
+    void fetch("/api/coding-agent/tools", { cache: "no-store" })
+      .then(async (response) => (response.ok ? response.json() : null))
+      .then(
+        (
+          payload: {
+            tools?: CodingToolDefinition[];
+            githubMode?: GithubCodingAgentUiMode;
+            githubConnected?: boolean;
+          } | null,
+        ) => {
+          if (!payload) return;
+          setTools(payload.tools ?? []);
+          setGithubMode(
+            payload.githubMode ??
+              (payload.githubConnected ? "full" : "public"),
+          );
+        },
+      )
+      .catch(() => undefined);
+  }, []);
   const actions = {
     chat: onOpenChat,
     conversations: onOpenConversations,
@@ -56,7 +87,7 @@ export function ToolsWorkspace({
 
   return (
     <div className="page-workspace overflow-y-auto">
-      <div className="mx-auto w-full max-w-[980px] px-5 pb-12 pt-10 sm:px-8 lg:px-12">
+      <div className="mx-auto w-full max-w-245 px-5 pb-12 pt-10 sm:px-8 lg:px-12">
         <p className="text-[10px] font-medium tracking-[0.3em] text-[#c6a46a]">
           РАБОЧЕЕ ПРОСТРАНСТВО
         </p>
@@ -75,7 +106,7 @@ export function ToolsWorkspace({
               <span className="flex size-10 shrink-0 items-center justify-center text-[#b89a61]">
                 <Icon size={20} weight="light" />
               </span>
-              <div className="min-w-[180px] flex-1">
+              <div className="min-w-45 flex-1">
                 <h2 className="text-sm font-medium text-[#e8e5de]">{title}</h2>
                 <p className="mt-1.5 text-[13px] leading-5 text-[#929088]">
                   {description}
@@ -91,6 +122,21 @@ export function ToolsWorkspace({
               </Button>
             </article>
           ))}
+        </div>
+
+        {tools.length > 0 && (
+          <CodingToolsTable tools={tools} githubMode={githubMode} />
+        )}
+        <div className="mt-6">
+          <Button
+            type="button"
+            variant="outline"
+            onClick={onOpenCodingAgent}
+            className="gap-2 border-[#4a3f2f] text-[#e5d4b2] hover:bg-[#17130f]"
+          >
+            Открыть Coding Agent
+            <ArrowRight size={14} />
+          </Button>
         </div>
       </div>
     </div>

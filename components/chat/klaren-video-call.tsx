@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { AnamEvent, createClient } from "@anam-ai/js-sdk";
 import {
   Camera, CameraSlash, ChatCircleText, HandPalm, Microphone, MicrophoneSlash,
@@ -48,6 +49,11 @@ export function KlarenVideoCall({ open, onClose, messages, isTyping, onSend }: {
   const [lastSpeaker, setLastSpeaker] = useState("");
   const [reaction, setReaction] = useState("");
   const [fullscreen, setFullscreen] = useState(false);
+  const [portaled, setPortaled] = useState(false);
+
+  useEffect(() => {
+    setPortaled(true);
+  }, []);
 
   const stopCamera = useCallback(() => {
     cameraRef.current?.getTracks().forEach((track) => track.stop());
@@ -292,11 +298,11 @@ export function KlarenVideoCall({ open, onClose, messages, isTyping, onSend }: {
     onClose();
   }
 
-  if (!open) return null;
+  if (!open || !portaled) return null;
 
-  return (
+  const overlay = (
     <div role="dialog" aria-modal="true" aria-label="Видеозвонок с Кларенсией"
-      className="fixed inset-0 z-[110] flex flex-col bg-[#080808] text-[#eee] [padding-top:env(safe-area-inset-top)] [padding-bottom:env(safe-area-inset-bottom)]">
+      className="klaren-call-root fixed inset-0 flex flex-col bg-[#080808] text-[#eee] [padding-top:env(safe-area-inset-top)] [padding-bottom:env(safe-area-inset-bottom)]">
       <header className="z-10 flex h-14 shrink-0 items-center justify-between border-b border-[#282522] bg-[#090909] px-4 sm:h-16 sm:px-8">
         <div className="flex items-center gap-3">
           <span className="font-serif text-2xl text-[#c7a46a]">N</span>
@@ -311,9 +317,10 @@ export function KlarenVideoCall({ open, onClose, messages, isTyping, onSend }: {
         </div>
       </header>
 
-      <main className="relative flex min-h-0 flex-1 items-center justify-center overflow-hidden bg-black">
-        <div className={`relative h-full w-full overflow-hidden ${fullscreen ? "" : "mx-auto max-w-[min(100%,1700px)]"}`}>
-          <video id={videoId} ref={avatarRef} autoPlay playsInline className="h-full w-full object-cover object-center" aria-label="Живой видеопоток Кларенсии"/>
+      <main className="relative min-h-0 flex-1 overflow-hidden bg-black">
+        <div className={`klaren-call-stage ${fullscreen ? "!inset-0" : ""}`}>
+          <div className="klaren-call-frame relative overflow-hidden">
+          <video id={videoId} ref={avatarRef} autoPlay playsInline className="klaren-call-video" aria-label="Живой видеопоток Кларенсии"/>
           <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/65 via-transparent to-black/15"/>
           {cameraOn && <video ref={previewRef} autoPlay muted playsInline aria-label="Предпросмотр собственной камеры" className="absolute right-4 top-4 aspect-video w-28 rounded-xl border border-[#534a3d] bg-black object-cover shadow-xl sm:right-7 sm:top-6 sm:w-48" />}
           {reaction && <div aria-live="polite" className="pointer-events-none absolute right-[12%] top-[24%] text-5xl drop-shadow-2xl sm:text-7xl">{reaction}</div>}
@@ -338,6 +345,7 @@ export function KlarenVideoCall({ open, onClose, messages, isTyping, onSend }: {
               )}
             </div>
           )}
+          </div>
         </div>
       </main>
 
@@ -377,4 +385,6 @@ export function KlarenVideoCall({ open, onClose, messages, isTyping, onSend }: {
       </footer>
     </div>
   );
+
+  return createPortal(overlay, document.body);
 }

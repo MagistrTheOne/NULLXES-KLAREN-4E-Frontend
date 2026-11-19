@@ -3,6 +3,7 @@ export type Workspace =
   | "conversations"
   | "model"
   | "tools"
+  | "coding"
   | "projects"
   | "settings";
 
@@ -18,12 +19,28 @@ export interface LocalAttachment {
   remoteFileProof?: string;
 }
 
+export type ChatMessagePart =
+  | {
+      type: "text";
+      text: string;
+    }
+  | {
+      type: "tool";
+      tool: "repo.list" | "repo.read" | "repo.search";
+      requestId: string;
+      status: "pending" | "ok" | "error";
+      summary?: import("@/lib/chat/message-parts").ChatToolSummary;
+      errorMessage?: string;
+    };
+
 export interface ChatMessage {
   id: string;
   role: MessageRole;
   content: string;
   createdAt: string;
   attachments: LocalAttachment[];
+  /** Опционально: tool cards и сегменты текста (старые диалоги — только content). */
+  parts?: ChatMessagePart[];
 }
 
 export interface Conversation {

@@ -19,7 +19,7 @@ export function ModelWorkspace({ onOpenChat }: ModelWorkspaceProps) {
             N
           </div>
           <p className="text-[10px] font-medium tracking-[0.32em] text-[#c6a46a]">
-            NULLXES
+            NULLXES GROUP
           </p>
           <h2 className="relative mt-5 text-[clamp(58px,9vw,112px)] font-medium leading-[0.92] tracking-[-0.075em] text-[#f4f1eb]">
             KLAREN <span className="text-[#c6a46a]">4E</span>
@@ -28,7 +28,7 @@ export function ModelWorkspace({ onOpenChat }: ModelWorkspaceProps) {
             ORBITAL AI
           </p>
           <p className="mt-7 max-w-155 text-sm leading-7 text-[#a6a39d] sm:text-[15px] sm:leading-8">
-            Единое пространство для разговоров, идей и совместной работы.
+            Общайся. Твори. И получай <span className="text-[#c6a46a]">ХОБА-ХОБА</span>.
           </p>
           <div className="mt-7">
             <Button

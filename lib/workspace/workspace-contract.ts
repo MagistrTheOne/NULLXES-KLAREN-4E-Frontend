@@ -1,5 +1,6 @@
 import { z } from "zod";
 import type { WorkspaceData } from "@/types/workspace";
+import { chatPhase1Tools, chatToolSummarySchema } from "@/lib/chat/message-parts";
 
 const preferencesSchema = z.object({
   sidebarCollapsed: z.boolean(),
@@ -29,15 +30,31 @@ const attachmentSchema = z.object({
   remoteFileProof: z.string().max(160).optional(),
 });
 
+const messagePartSchema = z.discriminatedUnion("type", [
+  z.object({
+    type: z.literal("text"),
+    text: z.string().max(8_000),
+  }),
+  z.object({
+    type: z.literal("tool"),
+    tool: z.enum(chatPhase1Tools),
+    requestId: z.string().max(80),
+    status: z.enum(["pending", "ok", "error"]),
+    summary: chatToolSummarySchema.optional(),
+    errorMessage: z.string().max(500).optional(),
+  }),
+]);
+
 const messageSchema = z.object({
   id: z.string().min(1).max(100),
   role: z.enum(["user", "assistant"]),
   content: z.string().max(8_000),
   createdAt: z.string().datetime(),
   attachments: z.array(attachmentSchema).max(10),
+  parts: z.array(messagePartSchema).max(12).optional(),
 });
 
-const conversationSchema = z.object({
+export const conversationSchema = z.object({
   id: z.string().min(1).max(100),
   title: z.string().min(1).max(160),
   createdAt: z.string().datetime(),

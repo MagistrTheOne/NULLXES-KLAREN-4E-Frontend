@@ -6,7 +6,11 @@ import {
 import { formatChatSseEvent } from "@/lib/chat/chat-sse";
 import { buildChatInstructions } from "@/lib/chat/server/chat-instructions";
 import { ChatProviderError } from "@/lib/chat/server/provider-error";
-import { XAIChatAdapter } from "@/lib/chat/server/xai-adapter";
+import {
+  resolveChatAdapter,
+  resolveChatProvider,
+} from "@/lib/chat/server/resolve-chat-adapter";
+import { runChatWithOptionalTools } from "@/lib/chat/server/chat-tool-loop";
 import { getAuthenticatedUser } from "@/lib/auth/server";
 import { KLAREN_VIDEO_PROMPT } from "@/lib/avatar/klaren-persona";
 import { verifyFileProof } from "@/lib/chat/server/file-proof";
@@ -53,7 +57,7 @@ function encodeEvent(event: ChatStreamEvent): Uint8Array {
 
 function logProviderFailure(error: unknown): void {
   console.error("Chat provider failed.", {
-    provider: "xai",
+    provider: resolveChatProvider(),
     reason:
       error instanceof ChatProviderError
         ? error.failureReason ?? error.code
@@ -143,21 +147,37 @@ export async function POST(request: Request): Promise<Response> {
           codingStyle: "balanced",
         }, authenticatedName) + (parsed.data.mode === "video" ? "\n\nГОЛОСОВОЙ ВИДЕОРЕЖИМ:\n" + KLAREN_VIDEO_PROMPT : "");
         let hasContent = false;
-        const onDelta = (delta: string) => {
-          if (delta && !abortController.signal.aborted) {
+        const onEvent = (event: ChatStreamEvent) => {
+          if (abortController.signal.aborted) return;
+          if (event.type === "message.delta" && event.delta) {
             hasContent = true;
-            controller.enqueue(encodeEvent({ type: "message.delta", delta }));
           }
+          controller.enqueue(encodeEvent(event));
         };
         try {
-          await new XAIChatAdapter().stream({
+          let adapter;
+          try {
+            adapter = resolveChatAdapter();
+          } catch {
+            throw new ChatProviderError("configuration", false, undefined, "chat_provider_unconfigured");
+          }
+          const codingModeEnabled = Boolean(parsed.data.personalization?.codingModeEnabled);
+          if (codingModeEnabled && (parsed.data.images.length > 0 || verifiedFiles.length > 0)) {
+            throw new ChatProviderError("configuration", false, undefined, "coding_tools_no_multimodal");
+          }
+
+          await runChatWithOptionalTools({
+            adapter,
             messages,
+            instructions,
+            codingModeEnabled,
+            userId,
             images: parsed.data.images,
             files: verifiedFiles,
-            instructions,
             signal: abortController.signal,
-            onDelta,
+            onEvent,
           });
+
           if (!hasContent) {
             throw new ChatProviderError("protocol", true, undefined, "empty_response");
           }

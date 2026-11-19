@@ -4,6 +4,7 @@ import {
   MAX_CHAT_MESSAGE_LENGTH,
   MAX_CHAT_MESSAGES,
 } from "@/lib/chat/chat-limits";
+import type { ChatCodingToolId, ChatToolSummary } from "@/lib/chat/message-parts";
 
 export {
   MAX_CHAT_HISTORY_LENGTH,
@@ -75,4 +76,18 @@ export type ChatPersonalization = z.infer<typeof chatPersonalizationSchema>;
 export type ChatStreamEvent =
   | { type: "message.delta"; delta: string }
   | { type: "message.completed" }
-  | { type: "message.error"; message: string; retryable: boolean };
+  | { type: "message.error"; message: string; retryable: boolean }
+  | { type: "tool.start"; tool: ChatCodingToolId; requestId: string }
+  | {
+      type: "tool.result";
+      tool: ChatCodingToolId;
+      requestId: string;
+      summary: ChatToolSummary;
+    }
+  | {
+      type: "tool.error";
+      tool: ChatCodingToolId;
+      requestId: string;
+      message: string;
+      retryable: boolean;
+    };

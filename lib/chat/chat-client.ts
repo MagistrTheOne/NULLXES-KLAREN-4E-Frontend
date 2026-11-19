@@ -11,6 +11,7 @@ export async function streamChatResponse(
   options: {
     signal: AbortSignal;
     onDelta: (delta: string) => void;
+    onStreamEvent?: (event: ChatStreamEvent) => void;
     personalization: ChatPersonalization;
     images?: string[];
     files?: { id: string; proof: string }[];
@@ -20,7 +21,13 @@ export async function streamChatResponse(
   const response = await fetch("/api/chat", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ messages, personalization: options.personalization, images: options.images ?? [], files: options.files ?? [], mode: options.mode ?? "chat" }),
+    body: JSON.stringify({
+      messages,
+      personalization: options.personalization,
+      images: options.images ?? [],
+      files: options.files ?? [],
+      mode: options.mode ?? "chat",
+    }),
     signal: options.signal,
   });
 
@@ -58,11 +65,15 @@ export async function streamChatResponse(
 
           if (event.type === "message.delta" && typeof event.delta === "string") {
             options.onDelta(event.delta);
+          } else if (
+            event.type === "tool.start" ||
+            event.type === "tool.result" ||
+            event.type === "tool.error"
+          ) {
+            options.onStreamEvent?.(event);
           } else if (event.type === "message.completed") {
             completed = true;
           } else if (event.type === "message.error") {
-            throw new Error(SEND_ERROR);
-          } else {
             throw new Error(SEND_ERROR);
           }
         }

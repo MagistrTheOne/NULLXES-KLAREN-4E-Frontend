@@ -27,6 +27,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { MarkdownContent } from "@/components/chat/markdown-content";
+import { ToolCallCard } from "@/components/chat/tool-call-card";
 import { VoiceModeControl } from "@/components/chat/voice-mode-control";
 import { KlarenVideoCall } from "@/components/chat/klaren-video-call";
 import type { ChatMessage, Conversation, LocalAttachment } from "@/types/workspace";
@@ -49,6 +50,7 @@ interface ChatWorkspaceProps {
   onToggleMobileSidebar: () => void;
   searchTargetMessageId: string | null;
   onSearchTargetHandled: () => void;
+  onVideoCallOpenChange?: (open: boolean) => void;
 }
 
 const EMPTY_MESSAGES: ChatMessage[] = [];
@@ -77,6 +79,7 @@ export function ChatWorkspace({
   onToggleMobileSidebar,
   searchTargetMessageId,
   onSearchTargetHandled,
+  onVideoCallOpenChange,
 }: ChatWorkspaceProps) {
   const [draft, setDraft] = useState("");
   const [videoCallOpen, setVideoCallOpen] = useState(false);
@@ -90,6 +93,19 @@ export function ChatWorkspace({
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const messages = conversation?.messages ?? EMPTY_MESSAGES;
   const telegramReadOnly = conversation?.id.startsWith("telegram:") ?? false;
+
+  useEffect(() => {
+    onVideoCallOpenChange?.(videoCallOpen);
+  }, [onVideoCallOpenChange, videoCallOpen]);
+
+  useEffect(() => {
+    if (!videoCallOpen) return;
+    const previous = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = previous;
+    };
+  }, [videoCallOpen]);
 
   useEffect(() => {
     transcriptEnd.current?.scrollIntoView({
@@ -461,6 +477,9 @@ function MessageRow({
             ? "rounded-tr-md border-[#4c4030] bg-[#211d17] text-[#eee7dc]"
             : "rounded-tl-md border-[#323232] bg-[#111]/95 text-[#e1e1e1]"
         }`}>
+          {!user && message.parts?.map((part) =>
+            part.type === "tool" ? <ToolCallCard key={part.requestId} part={part} /> : null,
+          )}
           {message.content && (
             renderMarkdown
               ? <MarkdownContent value={message.content} />
